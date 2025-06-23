@@ -1,0 +1,47 @@
+{
+  "name": "svg-path-simplify",
+  "version": "0.0.1",
+  "main": "./dist/svg-path-simplify.node.js",
+  "module": "./dist/svg-path-simplify.esm.js",
+  "browser": "./dist/svg-path-simplify.js",
+  "exports": {
+    ".": {
+      "import": "./dist/svg-path-simplify.esm.js",
+      "require": "./dist/svg-path-simplify.node.js"
+    },
+    "./dist/svg-path-simplify.esm.js": "./dist/svg-path-simplify.esm.js",
+    "./dist/svg-path-simplify.js": "./dist/svg-path-simplify.js",
+    "./dist/svg-path-simplify.min.js": "./dist/svg-path-simplify.min.js"
+  },
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/herrstrietzel/svg-path-simplify.git"
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c --watch",
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^3.29.5",
+    "rollup-plugin-concat": "^1.0.4"
+  },
+  "keywords": [
+    "bezier-simplification",
+    "svg-minification",
+    "simplification",
+    "Ramer-Douglas-Peucker"
+  ],
+  "author": "herrstrietzel",
+  "license": "MIT",
+  "description": "Simplify path Bézier geometry or polyline structures",
+  "dependencies": {
+    "terser": "^5.39.0"
+  },
+  "bugs": {
+    "url": "https://github.com/herrstrietzel/svg-path-simplify/issues"
+  },
+  "homepage": "https://github.com/herrstrietzel/svg-path-simplify#readme"
+}

@@ -1,0 +1,8 @@
+demo/
+rollup.config.js
+node_modules/
+gitnore/
+__back/
+__log/
+testfiles/
+favicon.svg
