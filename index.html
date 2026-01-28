@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG path simplifier</title>
+
+
+    <!-- 
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.css">
+        <script src="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.js" defer></script>
+    
+        <link rel="stylesheet" href="//localhost/___git/enhance-inputs/enhance-inputs/dist/enhanceInputs.css">
+    <script src="//localhost/___git/enhance-inputs/enhance-inputs/dist/enhanceInputs.js" defer></script>
+
+
+
+    -->
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.css">
+    <script src="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.js" defer></script>
+
+    <script src="demo/lib/elzoomo/elzoomo.js" defer></script>
+
+
+    <script src="dist/svg-path-simplify.js" defer></script>
+
+    <script src="demo/samples.js"></script>
+    <script src="demo/app.js" defer></script>
+
+
+    <link rel="stylesheet" href="demo/css/app.css">
+
+
+</head>
+
+
+<body class="enhance-inputs-init --scrollbar --scroll-content pdd-0 mrg-0"
+    data-enhance-inputs='{"storageName":"svgPathSimplify", "getQuery":true, "cacheToStorage":true,"icons":"all"}'>
+
+    <div class="grd-main hgh-100vh grd grd-md-3 grd-ld-5 gap-1em">
+        <div class="sidebar-wrap scrollbar scroll-content scroll-track">
+
+            <!--toolbars-->
+            <aside class="aside aside-1 hgh-100 aside scrollbar scroll-content-ld scroll-track   pdd-1em pos-rlt">
+
+                <h1>Simplify pathdata</h1>
+                <p>Enter your SVG pathData</p>
+
+                <p><input type="file" class="dsp-non --btn-neg" id="inputFile" name="svgFile" value="upload"
+                        data-label="Upload file" accept=".svg"></p>
+
+
+                <p class="--btn-neg" data-ui="reset"></p>
+
+                <p>
+                    <label>
+                        <select name="inputSamples" id="inputSamples" data-options="samples"></select>
+                    </label>
+                </p>
+
+
+                <label>Input SVG
+                    <textarea name="dInput" id="inputSvg" data-tools="size upload copy"></textarea>
+                </label>
+
+                <h3>SVG normalization</h3>
+                <p>
+                    <label><input type="checkbox" name="arcToCubic" >arcToCubic</label>
+                    <label><input type="checkbox" name="quadraticToCubic" >quadraticToCubic</label>
+                </p>
+
+
+
+            </aside>
+
+            <aside class="aside aside-2 pdd-1em pdd-top scrollbar scroll-content-ld scroll-track">
+
+                <h3>Simplification</h3>
+                <p>
+                    <label><input type="checkbox" name="simplifyBezier" checked>simplifyBezier</label>
+                    <label><input type="checkbox" name="removeColinear" checked>remove colinear linetos</label>
+
+                    <label><input type="checkbox" name="flatBezierToLinetos" checked>flat beziers to linetos</label>
+
+
+                    <label><input type="checkbox" name="optimizeOrder" checked>optimize path order</label>
+                    <label><input type="checkbox" name="keepExtremes" checked>keepExtremes</label>
+                    <label><input type="checkbox" name="keepCorners" checked>keepCorners</label>
+
+                    <label><input type="checkbox" name="keepInflections"
+                            data-info="retain inflections e.g spine of an S shape">keepInflections</label>
+
+                    <label><input type="checkbox" name="extrapolateDominant"
+                            data-info="extrapolates dominant bezier segment – rather sloppy">extrapolateDominant</label>
+
+                    <label><input type="checkbox" name="revertToQuadratics"
+                            data-info="Reverts cubic to quadratic Béziers if applicable" checked>revert
+                        revertToQuadratics</label>
+
+                    <label><input type="checkbox" name="cubicToArc"
+                            data-info="Reverts cubic to arcs if applicable">cubicToArc</label>
+
+
+                    <label><input type="checkbox" name="reverse">try with reversed drawing direction</label>
+
+
+
+                    <label><input type="checkbox" name="multipass"
+                            data-info="takes better simplification – slower">multipass</label>
+
+
+                    <label><input type="checkbox" name="addExtremes">addExtremes</label>
+
+
+
+                </p>
+
+                <p>
+                    <label>tolerance<input type="number" name="tolerance" min="0.1" max="10" step="0.1" value="1"
+                            data-info="higher tolerance = sloppier approximations – default 1"></label>
+                </p>
+
+
+                <p id="commandInfo"></p>
+
+                <h3>SVG settings</h3>
+                <p>
+                    <label><input type="checkbox" name="toRelative" checked>toRelative</label>
+                    <label><input type="checkbox" name="toShorthands" checked>toShorthands</label>
+                </p>
+
+                <h3>SVG string optimization</h3>
+                <p><label><input type="radio" name="minifyD" value="0" checked>minify</label>
+                    <label><input type="radio" name="minifyD" value="1">verbose</label>
+                    <label><input type="radio" name="minifyD" value="2">beautify</label>
+                </p>
+                <p>
+                    <label><input type="checkbox" name="autoAccuracy" checked>autoAccuracy</label>
+
+                    <label class="wdt-100">decimals <input type="number" name="decimals" min="0" value="1"
+                            data-info="reduces floating point precision: reduces filesize significantly!"></label>
+                </p>
+
+                <p>
+                    <label><input type="checkbox" name="showMarkers" checked>showMarkers</label>
+                </p>
+
+                <p>
+                    <label>Output SVG
+                        <textarea name="dOutput" id="outputSvg" data-tools="size upload copy"></textarea>
+                    </label>
+                </p>
+
+
+
+            </aside>
+        </div>
+
+        <!--main-->
+        <main class="main --spn-ld-2 --spn-ld-3 scrollbar scroll-content pst-rlt">
+
+            <header class="pst-sticky --pdd-1em z-ind-1000">
+                <label class="navToggle"><input type="checkbox" name="showNav" class="showNav"
+                        data-icon="adjustments-vertical" data-tooltip2="show settings" title="show settings"></label>
+
+                <a class="lnk-github" href="https://github.com/herrstrietzel/svg-path-simplify"
+                    title="See github repository">
+                    <svg viewBox="0 0 24 24" class="icn-svg">
+                        <use href="#github"></use>
+                    </svg>
+                </a>
+            </header>
+
+            <!--preview-->
+            <div id="previewWrp" class="preview --pdd-1em pst-rlt">
+
+                <div class="wrp-zoom"
+                    data-zoom='{"minScale":0.1,"maxScale":10,"zoom":1,"zoomStep":1.001, "toolbar":true}'>
+
+                    <svg id="svg" viewBox="0 0 100 100">
+
+                        <path id="path1" class="path pathO" d="M54,40.938C68.946,36.071,72.99,30.492,72.992,27
+	c0.004-5.928-11.632-5.845-1.367,13.938" />
+                        <path id="pathS" class="path pathS" d="" />
+
+                        <g id="markers"></g>
+                    </svg>
+
+                </div>
+
+            </div>
+
+
+
+        </main>
+
+
+
+    </div>
+
+
+    <!-- markers to show commands -->
+    <svg id="svgMarkers" class="sr-only" style="width:0; height:0; position:absolute; z-index:-1;float:left;">
+        <defs>
+            <marker id="markerStart" overflow="visible" viewBox="0 0 10 10" refX="5" refY="5" markerUnits="strokeWidth"
+                markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+                <circle cx="5" cy="5" r="3" fill="var(--color-focus, #ccc)"></circle>
+
+                <marker id="markerRound" overflow="visible" viewBox="0 0 10 10" refX="5" refY="5"
+                    markerUnits="strokeWidth" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+                    <circle cx="5" cy="5" r="2" fill="var(--color-focus, #ccc)"></circle>
+                </marker>
+        </defs>
+    </svg>
+
+
+
+</body>
+
+</html>

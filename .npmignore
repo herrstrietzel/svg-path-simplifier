@@ -4,5 +4,6 @@ node_modules/
 gitnore/
 __back/
 __log/
+__testfiles/
 testfiles/
 favicon.svg

@@ -1,0 +1,220 @@
+import { checkLineIntersection, getAngle, getDistAv, getSquareDistance, interpolate, pointAtT, rotatePoint } from "./svgii/geometry";
+import { getPathArea } from "./svgii/geometry_area";
+import { pathDataToD } from "./svgii/pathData_stringify";
+import { renderPath, renderPoint } from "./svgii/visualize";
+
+export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
+
+    // cubic Bézier derivative
+    const cubicDerivative = (p0, p1, p2, p3, t) => {
+        let mt = 1 - t;
+
+        return {
+            x:
+                3 * mt * mt * (p1.x - p0.x) +
+                6 * mt * t * (p2.x - p1.x) +
+                3 * t * t * (p3.x - p2.x),
+            y:
+                3 * mt * mt * (p1.y - p0.y) +
+                6 * mt * t * (p2.y - p1.y) +
+                3 * t * t * (p3.y - p2.y)
+        };
+    }
+
+
+
+    // if combining fails return original commands
+    let commands = [com1, com2]
+
+    // detect dominant 
+    let dist1 = getSquareDistance(com1.p0, com1.p)
+    let dist2 = getSquareDistance(com2.p0, com2.p)
+    let reverse = dist1 > dist2;
+
+    //let ang1 = getAngle(com1.p0, com1.cp1)
+    //let ang2 = getAngle(com2.p, com1.cp2)
+
+    // backup original commands
+    let com1_o = JSON.parse(JSON.stringify(com1))
+    let com2_o = JSON.parse(JSON.stringify(com2))
+
+    let ptI = checkLineIntersection(com1_o.p0, com1_o.cp1, com2_o.p, com2_o.cp2, false)
+
+    if (!ptI) {
+        //renderPoint(markers, com1.p, 'purple')
+        return commands
+    }
+
+
+    if (reverse) {
+        let com2_R = {
+            p0: { x: com1.p.x, y: com1.p.y },
+            cp1: { x: com1.cp2.x, y: com1.cp2.y },
+            cp2: { x: com1.cp1.x, y: com1.cp1.y },
+            p: { x: com1.p0.x, y: com1.p0.y },
+        }
+
+        let com1_R = {
+            p0: { x: com2.p.x, y: com2.p.y },
+            cp1: { x: com2.cp2.x, y: com2.cp2.y },
+            cp2: { x: com2.cp1.x, y: com2.cp1.y },
+            p: { x: com2.p0.x, y: com2.p0.y },
+        }
+
+        com1 = com1_R;
+        com2 = com2_R;
+    }
+
+
+    let add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+    let sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+    let mul = (a, s) => ({ x: a.x * s, y: a.y * s });
+    let dot = (a, b) => a.x * b.x + a.y * b.y;
+
+
+    // estimate extrapolation parameter t0
+
+    let B0 = com2.p0;
+    let D0 = cubicDerivative(
+        com2.p0,
+        com2.cp1,
+        com2.cp2,
+        com2.p,
+        0
+    );
+
+    let v = sub(com1.p0, B0);
+
+    // first-order projection onto tangent
+    let t0 = dot(v, D0) / dot(D0, D0);
+
+
+    // refine with one Newton iteration (optional but cheap)
+    let P = pointAtT([com2.p0, com2.cp1, com2.cp2, com2.p], t0);
+    let dP = cubicDerivative(com2.p0, com2.cp1, com2.cp2, com2.p, t0);
+    let r = sub(P, com1.p0);
+
+    //let t0_2 = t0 - dot(r, dP) / dot(dP, dP);
+    //console.log(t0, t0_2);
+
+    t0 -= dot(r, dP) / dot(dP, dP);
+
+
+    // construct merged cubic over [t0, 1]
+
+    let Q0 = pointAtT([com2.p0, com2.cp1, com2.cp2, com2.p], t0);
+    let Q3 = com2.p;
+
+    let d0 = cubicDerivative(com2.p0, com2.cp1, com2.cp2, com2.p, t0);
+    let d1 = cubicDerivative(com2.p0, com2.cp1, com2.cp2, com2.p, 1);
+
+    let scale = 1 - t0;
+
+    let Q1 = add(Q0, mul(d0, scale / 3));
+    let Q2 = sub(Q3, mul(d1, scale / 3));
+
+    let result = {
+        p0: Q0,
+        cp1: Q1,
+        cp2: Q2,
+        p: Q3,
+    };
+
+
+    if (reverse) {
+        result = {
+            p0: Q3,
+            cp1: Q2,
+            cp2: Q1,
+            p: Q0,
+        }
+    }
+
+
+    let ptM = pointAtT([result.p0, result.cp1, result.cp2, result.p], 0.5, false, true)
+    let seg1_cp2 = ptM.cpts[2]
+    //let seg2_cp1 = ptM.cpts[3]
+
+
+    let ptI_1 = checkLineIntersection(ptM, seg1_cp2, result.p0, ptI, false)
+    let ptI_2 = checkLineIntersection(ptM, seg1_cp2, result.p, ptI, false)
+
+
+    let cp1_2 = interpolate(result.p0, ptI_1, 1.333)
+    let cp2_2 = interpolate(result.p, ptI_2, 1.333)
+
+    // test self intersections and exit 
+    let cp_intersection = checkLineIntersection(com1_o.p0, cp1_2, com2_o.p, cp2_2, true )
+    if(cp_intersection){
+        //renderPoint(markers, cp_intersection )
+        return commands;
+    }
+
+
+    result.cp1 = cp1_2
+    result.cp2 = cp2_2
+
+    // check distances
+
+    let dist3 = getDistAv(com1_o.p0, result.p0)
+    let dist4 = getDistAv(com2_o.p, result.p)
+    let dist5 = (dist3 + dist4)
+
+    // use original points
+    result.p0 = com1_o.p0
+    result.p = com2_o.p
+    result.extreme = com2_o.extreme
+    result.corner = com2_o.corner
+    result.dimA = com2_o.dimA
+    result.directionChange = com2_o.directionChange
+    result.values = [result.cp1.x, result.cp1.y, result.cp2.x, result.cp2.y, result.p.x, result.p.y]
+
+
+
+    // check if completely off
+    if (dist5 < maxDist) {
+
+        // compare combined with original area
+        let pathData0 = [
+            { type: 'M', values: [com1_o.p0.x, com1_o.p0.y] },
+            { type: 'C', values: [com1_o.cp1.x, com1_o.cp1.y, com1_o.cp2.x, com1_o.cp2.y, com1_o.p.x, com1_o.p.y] },
+            { type: 'C', values: [com2_o.cp1.x, com2_o.cp1.y, com2_o.cp2.x, com2_o.cp2.y, com2_o.p.x, com2_o.p.y] },
+        ];
+
+        let area0 = getPathArea(pathData0)
+        let pathDataN = [
+            { type: 'M', values: [result.p0.x, result.p0.y] },
+            { type: 'C', values: [result.cp1.x, result.cp1.y, result.cp2.x, result.cp2.y, result.p.x, result.p.y] },
+        ]
+
+        let areaN = getPathArea(pathDataN)
+        let areaDiff = Math.abs(areaN / area0 - 1)
+
+        result.error = areaDiff * 10 * tolerance;
+        //result.error = areaDiff + dist5;
+
+        let d = pathDataToD(pathDataN)
+
+        // success
+        if (areaDiff < 0.01) {
+            commands = [result];
+            //renderPath(markers, d, 'orange')
+            //console.log('areaDiff', areaDiff);
+
+        } else {
+            // renderPath(markers, d, 'red')
+            // console.log('areaDiff', areaDiff);
+        }
+
+
+        //renderPath(markers, d, 'orange')
+    }
+
+
+
+    //console.log(commands);
+
+    return commands
+
+}
+

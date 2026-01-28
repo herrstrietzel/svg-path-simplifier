@@ -1,0 +1,80 @@
+export function cleanUpSVG(svgMarkup, removeHidden=true) {
+  svgMarkup = cleanSvgPrologue(svgMarkup);
+  
+  // replace namespaced refs 
+  svgMarkup = svgMarkup.replaceAll("xlink:href=", "href=");
+  
+  let svg = new DOMParser()
+    .parseFromString(svgMarkup, "text/html")
+    .querySelector("svg");
+  
+  
+  let allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class'];
+  removeExcludedAttribues(svg, allowed)
+  
+  let removeEls = ['metadata', 'script']
+  
+  let els = svg.querySelectorAll('*')
+  els.forEach(el=>{
+    let name = el.nodeName;    
+    // remove hidden elements
+    let style = el.getAttribute('style') || ''
+    let isHiddenByStyle = style ? style.trim().includes('display:none') : false;
+    let isHidden = (el.getAttribute('display') && el.getAttribute('display') === 'none') || isHiddenByStyle;
+    if(name.includes(':') || removeEls.includes(name) || (removeHidden && isHidden )) {
+      el.remove();
+    }else{
+      // remove BS elements
+      removeNameSpaceAtts(el)
+    }
+  })
+
+  let markup = stringifySVG(svg)
+  console.log(markup);
+
+  return markup;
+}
+
+function cleanSvgPrologue(svgString) {
+  return (
+    svgString
+      // Remove XML prologues like <?xml ... ?>
+      .replace(/<\?xml[\s\S]*?\?>/gi, "")
+      // Remove DOCTYPE declarations
+      .replace(/<!DOCTYPE[\s\S]*?>/gi, "")
+      // Remove comments <!-- ... -->
+      .replace(/<!--[\s\S]*?-->/g, "")
+      // Trim extra whitespace
+      .trim()
+  );
+}
+
+function removeExcludedAttribues(el, allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class']){
+  let atts = [...el.attributes].map((att) => att.name);
+  atts.forEach((att) => {
+    if (!allowed.includes(att)) {
+      el.removeAttribute(att);
+    }
+  });
+}
+
+
+function removeNameSpaceAtts(el) {
+  let atts = [...el.attributes].map((att) => att.name);
+  atts.forEach((att) => {
+    if (att.includes(":")) {
+      el.removeAttribute(att);
+    }
+  });
+}
+
+function stringifySVG(svg){
+    let markup = new XMLSerializer().serializeToString(svg);
+  markup = markup
+  .replace(/\t/g, "")
+  .replace(/[\n\r|]/g, "\n")
+  .replace(/\n\s*\n/g, '\n')
+  .replace(/ +/g, ' ')
+
+  return markup
+}
