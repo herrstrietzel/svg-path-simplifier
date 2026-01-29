@@ -33,7 +33,8 @@ export function pathDataToTopLeft(pathData) {
     }
 
     // reorder  to top left most
-    indices = indices.sort((a, b) => +a.y.toFixed(3) - +b.y.toFixed(3) || a.x - b.x);
+    //|| a.x - b.x
+    indices = indices.sort((a, b) => +a.y.toFixed(3) - +b.y.toFixed(3) );
     newIndex = indices[0].index
 
     return  newIndex ? shiftSvgStartingPoint(pathData, newIndex) : pathData;
@@ -42,11 +43,11 @@ export function pathDataToTopLeft(pathData) {
 
 
 
-export function optimizeClosePath(pathData, removeFinalLineto = false, reorder = true) {
+export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = true) {
 
     let pathDataNew = [];
     let len = pathData.length;
-    let M = { x: pathData[0].values[0], y: pathData[0].values[1] }
+    let M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) }
     let isClosed = pathData[len - 1].type.toLowerCase() === 'z'
 
     let linetos = pathData.filter(com => com.type === 'L')
@@ -113,14 +114,18 @@ export function optimizeClosePath(pathData, removeFinalLineto = false, reorder =
     }
 
 
+    M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(7) }
+
     len = pathData.length
 
     // remove last lineto
     penultimateCom = pathData[len - 2];
     penultimateType = penultimateCom.type;
-    penultimateComCoords = penultimateCom.values.slice(-2)
+    penultimateComCoords = penultimateCom.values.slice(-2).map(val=>+val.toFixed(8))
 
     isClosingCommand = penultimateType === 'L' && penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y
+
+    //console.log('penultimateCom', isClosingCommand, penultimateCom.values, M);
 
     if (removeFinalLineto && isClosingCommand) {
         pathData.splice(len - 2, 1)

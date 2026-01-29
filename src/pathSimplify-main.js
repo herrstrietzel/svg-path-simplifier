@@ -7,7 +7,7 @@ import { combineArcs, convertPathData, cubicCommandToArc, revertCubicQuadratic }
 import { parsePathDataNormalized } from './svgii/pathData_parse';
 import { pathDataRemoveColinear } from './svgii/pathData_remove_collinear';
 import { removeZeroLengthLinetos } from './svgii/pathData_remove_zerolength';
-import { pathDataToTopLeft } from './svgii/pathData_reorder';
+import { optimizeClosePath, pathDataToTopLeft } from './svgii/pathData_reorder';
 import { reversePathData } from './svgii/pathData_reverse';
 import { addExtremePoints, splitSubpaths } from './svgii/pathData_split';
 import { pathDataToD } from './svgii/pathData_stringify';
@@ -201,12 +201,14 @@ export function svgPathSimplify(input = '', {
                 })
             }
 
+            // optimize close path
+            if(optimizeOrder) pathData=optimizeClosePath(pathData)
 
             // update
             pathDataArrN.push(pathData)
         }
 
-
+        
         // flatten compound paths 
         pathData = pathDataArrN.flat();
 

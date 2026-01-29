@@ -3610,10 +3610,96 @@
       }
 
       // reorder  to top left most
-      indices = indices.sort((a, b) => +a.y.toFixed(3) - +b.y.toFixed(3) || a.x - b.x);
+
+      indices = indices.sort((a, b) => +a.y.toFixed(3) - +b.y.toFixed(3) );
       newIndex = indices[0].index;
 
       return  newIndex ? shiftSvgStartingPoint(pathData, newIndex) : pathData;
+  }
+
+  function optimizeClosePath(pathData, removeFinalLineto = true, reorder = true) {
+
+      let pathDataNew = [];
+      let len = pathData.length;
+      let M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) };
+      let isClosed = pathData[len - 1].type.toLowerCase() === 'z';
+
+      let linetos = pathData.filter(com => com.type === 'L');
+
+      // check if order is ideal
+      let penultimateCom = pathData[len - 2];
+      let penultimateType = penultimateCom.type;
+      let penultimateComCoords = penultimateCom.values.slice(-2).map(val => +val.toFixed(8));
+
+      // last L command ends at M 
+      let isClosingCommand = penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y;
+
+      // if last segment is not closing or a lineto
+      let skipReorder = pathData[1].type !== 'L' && (!isClosingCommand || penultimateType === 'L');
+      skipReorder = false;
+
+      // we can't change starting point for non closed paths
+      if (!isClosed) {
+          return pathData
+      }
+
+      let newIndex = 0;
+
+      if (!skipReorder) {
+
+          let indices = [];
+          for (let i = 0, len = pathData.length; i < len; i++) {
+              let com = pathData[i];
+              let { type, values } = com;
+              if (values.length) {
+                  let valsL = values.slice(-2);
+                  let prevL = pathData[i - 1] && pathData[i - 1].type === 'L';
+                  let nextL = pathData[i + 1] && pathData[i + 1].type === 'L';
+                  let prevCom = pathData[i - 1] ? pathData[i - 1].type.toUpperCase() : null;
+                  let nextCom = pathData[i + 1] ? pathData[i + 1].type.toUpperCase() : null;
+                  let p = { type: type, x: valsL[0], y: valsL[1], dist: 0, index: 0, prevL, nextL, prevCom, nextCom };
+                  p.index = i;
+                  indices.push(p);
+              }
+          }
+
+          // find top most lineto
+
+          if (linetos.length) {
+              let curveAfterLine = indices.filter(com => (com.type !== 'L' && com.type !== 'M') && com.prevCom &&
+                  com.prevCom === 'L' || com.prevCom === 'M' && penultimateType === 'L').sort((a, b) => a.y - b.y || a.x - b.x)[0];
+
+              newIndex = curveAfterLine ? curveAfterLine.index - 1 : 0;
+
+          }
+          // use top most command
+          else {
+              indices = indices.sort((a, b) => +a.y.toFixed(1) - +b.y.toFixed(1) || a.x - b.x);
+              newIndex = indices[0].index;
+          }
+
+          // reorder 
+          pathData = newIndex ? shiftSvgStartingPoint(pathData, newIndex) : pathData;
+      }
+
+      M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(7) };
+
+      len = pathData.length;
+
+      // remove last lineto
+      penultimateCom = pathData[len - 2];
+      penultimateType = penultimateCom.type;
+      penultimateComCoords = penultimateCom.values.slice(-2).map(val=>+val.toFixed(8));
+
+      isClosingCommand = penultimateType === 'L' && penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y;
+
+      if (removeFinalLineto && isClosingCommand) {
+          pathData.splice(len - 2, 1);
+      }
+
+      pathDataNew.push(...pathData);
+
+      return pathDataNew
   }
 
   /**
@@ -4083,10 +4169,14 @@
                   });
               }
 
+              // optimize close path
+              if(optimizeOrder) pathData=optimizeClosePath(pathData);
+
               // update
               pathDataArrN.push(pathData);
           }
 
+          
           // flatten compound paths 
           pathData = pathDataArrN.flat();
 
