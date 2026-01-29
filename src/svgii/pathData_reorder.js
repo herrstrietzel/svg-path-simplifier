@@ -7,8 +7,42 @@ import { renderPoint, renderPath } from './visualize.js';
 import { getPolygonArea } from './geometry_area.js';
 
 
+export function pathDataToTopLeft(pathData) {
 
-export function pathDataToTopLeft(pathData, removeFinalLineto = false, reorder = true) {
+    let len = pathData.length;
+    let isClosed = pathData[len - 1].type.toLowerCase() === 'z'
+
+    // we can't change starting point for non closed paths
+    if (!isClosed) {
+        return pathData
+    }
+
+    let newIndex = 0;
+
+    //get top most index
+    let indices = [];
+    for (let i = 0; i < len; i++) {
+        let com = pathData[i];
+        let { type, values } = com;
+        let valsLen = values.length
+        if (valsLen) {
+            let p = { type: type, x: values[valsLen-2], y: values[valsLen-1], index: 0}
+            p.index = i
+            indices.push(p)
+        }
+    }
+
+    // reorder  to top left most
+    indices = indices.sort((a, b) => +a.y.toFixed(3) - +b.y.toFixed(3) || a.x - b.x);
+    newIndex = indices[0].index
+
+    return  newIndex ? shiftSvgStartingPoint(pathData, newIndex) : pathData;
+}
+
+
+
+
+export function optimizeClosePath(pathData, removeFinalLineto = false, reorder = true) {
 
     let pathDataNew = [];
     let len = pathData.length;
@@ -21,18 +55,18 @@ export function pathDataToTopLeft(pathData, removeFinalLineto = false, reorder =
     // check if order is ideal
     let penultimateCom = pathData[len - 2];
     let penultimateType = penultimateCom.type;
-    let penultimateComCoords = penultimateCom.values.slice(-2).map(val=>+val.toFixed(8))
+    let penultimateComCoords = penultimateCom.values.slice(-2).map(val => +val.toFixed(8))
 
     // last L command ends at M 
-    let isClosingCommand =  penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y
+    let isClosingCommand = penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y
 
     // if last segment is not closing or a lineto
-    let skipReorder = pathData[1].type!=='L' && (!isClosingCommand || penultimateType==='L' )
-    skipReorder=false
+    let skipReorder = pathData[1].type !== 'L' && (!isClosingCommand || penultimateType === 'L')
+    skipReorder = false
 
 
     // we can't change starting point for non closed paths
-    if (!isClosed ) {
+    if (!isClosed) {
         return pathData
     }
 
@@ -62,15 +96,15 @@ export function pathDataToTopLeft(pathData, removeFinalLineto = false, reorder =
         // find top most lineto
 
         if (linetos.length) {
-            let curveAfterLine = indices.filter(com => (com.type !== 'L' && com.type !== 'M') && com.prevCom && 
-            com.prevCom === 'L' || com.prevCom==='M' && penultimateType==='L' ).sort((a, b) => a.y - b.y || a.x-b.x)[0]
+            let curveAfterLine = indices.filter(com => (com.type !== 'L' && com.type !== 'M') && com.prevCom &&
+                com.prevCom === 'L' || com.prevCom === 'M' && penultimateType === 'L').sort((a, b) => a.y - b.y || a.x - b.x)[0]
 
             newIndex = curveAfterLine ? curveAfterLine.index - 1 : 0
 
         }
         // use top most command
         else {
-            indices = indices.sort((a, b) => +a.y.toFixed(1) - +b.y.toFixed(1) || a.x - b.x  );
+            indices = indices.sort((a, b) => +a.y.toFixed(1) - +b.y.toFixed(1) || a.x - b.x);
             newIndex = indices[0].index
         }
 

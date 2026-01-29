@@ -73,7 +73,7 @@
                 <h3>SVG normalization</h3>
                 <p>
                     <label><input type="checkbox" name="arcToCubic">arcToCubic</label>
-                    <label><input type="checkbox" name="quadraticToCubic">quadraticToCubic</label>
+                    <label><input type="checkbox" name="quadraticToCubic" checked>quadraticToCubic</label>
                 </p>
 
 
@@ -108,12 +108,12 @@
                             data-info="Reverts cubic to arcs if applicable">cubicToArc</label>
 
 
-                    <label><input type="checkbox" name="reverse">try with reversed drawing direction</label>
-
-
-
-                    <label><input type="checkbox" name="multipass"
-                            data-info="takes better simplification – slower">multipass</label>
+                            <!-- 
+                                <label><input type="checkbox" name="reverse">try with reversed drawing direction</label>
+            
+                                <label><input type="checkbox" name="multipass"
+                                        data-info="takes better simplification – slower">multipass</label>
+                            -->
 
 
                     <label><input type="checkbox" name="addExtremes">addExtremes</label>
@@ -193,6 +193,8 @@
 
                         <g id="markers"></g>
                     </svg>
+
+                    <div id="svgWrap" class="svgWrap"></div>
 
                 </div>
 

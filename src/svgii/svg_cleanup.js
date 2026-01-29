@@ -1,4 +1,8 @@
-export function cleanUpSVG(svgMarkup, removeHidden=true) {
+export function cleanUpSVG(svgMarkup, {
+  returnDom=false, 
+  removeHidden=true,
+  removeUnused=true,
+}={}) {
   svgMarkup = cleanSvgPrologue(svgMarkup);
   
   // replace namespaced refs 
@@ -28,6 +32,8 @@ export function cleanUpSVG(svgMarkup, removeHidden=true) {
       removeNameSpaceAtts(el)
     }
   })
+
+  if(returnDom) return svg
 
   let markup = stringifySVG(svg)
   console.log(markup);

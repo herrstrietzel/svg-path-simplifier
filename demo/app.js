@@ -1,6 +1,9 @@
 
 let settings = {}
 let inputDecimals = document.querySelector('[name=decimals]')
+// preview svg for paths
+let svgEl = document.getElementById('svg')
+
 
 window.addEventListener('DOMContentLoaded', (e) => {
 
@@ -24,6 +27,32 @@ window.addEventListener('DOMContentLoaded', (e) => {
 })
 
 
+inputFile.addEventListener('input', async (e) => {
+    let file = inputFile.files[0];
+    let { size } = file;
+    let sizeKB = +(size / 1024).toFixed(1)
+
+    if (sizeKB > 500) {
+
+        if (!window.confirm(`This image is quite large ${sizeKB} KB – processing may take a while.\n Wanna proceed?`)) {
+            inputFile.value = '';
+            return
+        }
+
+    }
+
+    let input = await file.text();
+    settings.dInput = input;
+    inputSvg.value = input;
+    
+    updateSVG(settings);
+
+
+
+}, true)
+
+
+
 inputSamples.addEventListener('input', e => {
     let d = e.currentTarget.value;
     inputSvg.value = d;
@@ -40,39 +69,75 @@ function updateSVG(settings = {}) {
 
     showMarkersInPreview(previewWrp, settings)
 
+    // get detailed object
+    settings.getObject = true;
+
     let { dInput } = settings;
 
     if (!dInput) return
 
-    let t0=performance.now();
+    let t0 = performance.now();
     let pathDataOpt = svgPathSimplify(dInput, settings)
-    let t1=performance.now() - t0;
+    let t1 = performance.now() - t0;
 
     console.log('pathDataOpt', pathDataOpt, 'timing', t1);
 
     //pathDataOpt = svgPathSimplify(pathDataOpt.d, settings)
 
-    let { d, pathData, report } = pathDataOpt;
-    let { original, decimals } = report;
+    let { d, svg, report, inputType, mode } = pathDataOpt;
+    let { original, decimals = null } = report;
 
     // show auto accuracy
-    if (inputDecimals && settings.autoAccuracy) {
+    if (decimals !== null && inputDecimals && settings.autoAccuracy) {
         settings.decimals = decimals
         inputDecimals.value = decimals
     }
 
+    let reportText = !mode ? `${report.new}/${report.original} – removed: ${report.saved} compressed: ${report.compression} %` : `${report.svgSizeOpt}/${report.svgSize} KB – compressed: ${report.compression} %`
 
-    commandInfo.textContent = `${report.new}/${report.original} – removed ${report.saved}`
+    // update report
+    commandInfo.textContent = reportText
 
-    outputSvg.value = d;
-
-    // update rendering
-    path1.setAttribute('d', dInput)
-    pathS.setAttribute('d', d)
+    // return path data or svg 
+    outputSvg.value = !mode ? d : svg;
 
 
-    adjustViewBox(svg);
+    // update preview rendering
+    svgWrap.innerHTML='';
 
+    if (!mode) {
+        svgEl.classList.remove('dsp-non')
+
+        if (inputType === 'polyString') dInput = 'M' + dInput;
+
+        path1.setAttribute('d', dInput)
+        pathS.setAttribute('d', d)
+
+
+        adjustViewBox(svgEl);
+    }
+
+    // input is svg doc
+    if(mode){
+        svgEl.classList.add('dsp-non')
+        svgWrap.insertAdjacentHTML('beforeend', svg)
+        let svgDocEl = svgWrap.querySelector('svg')
+
+        let viewBoxAtt = svgDocEl.getAttribute('viewBox')
+
+        if(!viewBoxAtt){
+
+            let viewBox = getViewBox(svgDocEl);
+            viewBoxAtt = [viewBox.x, viewBox.y, viewBox.width, viewBox.height].join(' ')
+    
+            //console.log('viewBox', viewBox);
+            svgDocEl.setAttribute('viewBox', viewBoxAtt)
+        }
+
+        svgDocEl.removeAttribute('width')
+        svgDocEl.removeAttribute('height')
+
+    }
 
 }
 

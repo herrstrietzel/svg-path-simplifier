@@ -264,6 +264,18 @@ canvas {
     }
     */
 
+    .svgWrap {
+
+        path, circle, ellipse, polygon, polyline, line, rect{
+            fill: none;
+            stroke: var(--color-focus);
+            stroke-width: 0.3%;
+            stroke-linecap:square;
+        }
+    }
+
+
+    .svgWrap path,
     .pathS {
         marker-start: url(#markerStart);
         marker-mid: url(#markerRound);

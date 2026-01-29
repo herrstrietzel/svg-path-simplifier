@@ -21,6 +21,8 @@ export function detectAccuracy(pathData) {
 
     //console.log('detectAccuracy');
 
+    let dims = new Set();
+
     // add average distances
     for (let i = 0, len = pathData.length; i < len; i++) {
         let com = pathData[i];
@@ -34,8 +36,10 @@ export function detectAccuracy(pathData) {
         //let dimA = +getDistAv(p0, p).toFixed(8)
         //console.log('dimA', dimA, com.dimA, type);
 
+        if(dimA) dims.add(dimA);
+
         if(dimA && dimA<minDim) minDim = dimA;
-        //if(dimA && dimA>maxDim) maxDim = dimA;
+        if(dimA && dimA>maxDim) maxDim = dimA;
         
 
         if(type==='M'){
@@ -44,16 +48,20 @@ export function detectAccuracy(pathData) {
         p0 = p;
     }
 
-    //minDim = +minDim.toFixed(8)
-    let decimalsAuto = Math.floor(50 / minDim).toString().length
-    //console.log('!!!minDim', minDim, 'maxDim', maxDim, decimalsAuto);
+
+    let dim_min = Array.from(dims).sort()
+    let sliceIdx = Math.ceil(dim_min.length/8);
+    dim_min = dim_min.slice(0, sliceIdx );
+
+    let dimVal = dim_min.reduce((a,b)=>a+b, 0) / sliceIdx;
+
+    let threshold = 50
+    let decimalsAuto = dimVal > threshold ? 0 : Math.floor(threshold / dimVal).toString().length
 
     // clamp
     return Math.min(Math.max(0, decimalsAuto), 8)
 
 }
-
-
 
 
 

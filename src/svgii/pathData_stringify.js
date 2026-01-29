@@ -8,25 +8,27 @@ export function pathDataToD(pathData, optimize = 0) {
 
     optimize = parseFloat(optimize)
 
+
+
+    let len = pathData.length;
     let beautify = optimize > 1;
     let minify = beautify || optimize ? false : true;
 
     // Convert first "M" to "m" if followed by "l" (when minified)
+    /*
     if (pathData[1].type === "l" && minify) {
         pathData[0].type = "m";
     }
+    */
 
     let d = '';
-    let suff = beautify ? `\n` : ' ';
+    let separator_command = beautify ? `\n` : (minify ? '' : ' ');
+    let separator_type =  !minify ? ' ' : '';
+
+    d = `${pathData[0].type}${separator_type}${pathData[0].values.join(" ")}${separator_command}`;
 
 
-    if (minify) {
-        d = `${pathData[0].type} ${pathData[0].values.join(" ")}`;
-    } else {
-        d = `${pathData[0].type} ${pathData[0].values.join(" ")}${suff}`;
-    }
-
-    for (let i = 1, len = pathData.length; i < len; i++) {
+    for (let i = 1; i < len; i++) {
         let com0 = pathData[i - 1];
         let com = pathData[i];
         let { type, values } = com;
@@ -44,8 +46,6 @@ export function pathDataToD(pathData, optimize = 0) {
         type = (com0.type === com.type && com.type.toLowerCase() !== 'm' && minify)
             ? " "
             : (
-                (com0.type === "m" && com.type === "l") ||
-                (com0.type === "M" && com.type === "l") ||
                 (com0.type === "M" && com.type === "L")
             ) && minify
                 ? " "
@@ -79,17 +79,16 @@ export function pathDataToD(pathData, optimize = 0) {
                 //console.log(isSmallFloat, prevWasFloat, valStr);
 
                 valsString += valStr
-                //.replace(/-0./g, '-.').replace(/ -./g, '-.')
                 prevWasFloat = isSmallFloat;
             }
 
             //console.log('minify', valsString);
-            d += `${type}${valsString}`;
+            d += `${type}${separator_type}${valsString}${separator_command}`;
 
         }
         // regular non-minified output
         else {
-            d += `${type} ${values.join(' ')}${suff}`;
+            d += `${type}${separator_type}${values.join(' ')}${separator_command}`;
         }
     }
 

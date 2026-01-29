@@ -52,7 +52,7 @@ export function checkLineIntersection(p1, p2, p3, p4, exact = true) {
         y: p1.y + (a * (p2.y - p1.y))
     }
 
-   // console.log('intersectionPoint', intersectionPoint, p1, p2);
+    // console.log('intersectionPoint', intersectionPoint, p1, p2);
 
 
 
@@ -985,16 +985,63 @@ export function commandIsFlat(points, tolerance = 0.025) {
 }
 
 
+export function checkBezierFlatness(p0, cpts, p) {
 
+    let isFlat = false;
+
+    let isCubic = cpts.length===2;
+
+    let cp1 = cpts[0]
+    let cp2 = isCubic ? cpts[1] : cp1;
+
+    if(p0.x===cp1.x && p0.y===cp1.y && p.x===cp2.x && p.y===cp2.y) return true;
+
+    let dx1 = cp1.x - p0.x;
+    let dy1 = cp1.y - p0.y;
+
+    let dx2 = p.x - cp2.x;
+    let dy2 = p.y - cp2.y;
+
+    let cross1 = Math.abs(dx1 * dy2 - dy1 * dx2);
+
+    if(!cross1) return true
+
+    let dx0 = p.x - p0.x;
+    let dy0 = p.y - p0.y;
+    let cross0 = Math.abs(dx0 * dy1 - dy0 * dx1);
+
+    if(!cross0) return true
+
+    //let diff = Math.abs(cross0 - cross1)
+    //let rat0 = 1/cross0 * diff;
+    let rat = (cross0/cross1)
+
+    if (rat<1.1 ) {
+        //console.log('cross', cross0, cross1, 'rat', rat, rat0, diff );
+        isFlat = true;
+    }
+
+    return isFlat;
+
+}
 
 /**
  * sloppy distance calculation
  * based on x/y differences
  */
 export function getDistAv(pt1, pt2) {
-    let diffX = Math.abs(pt1.x - pt2.x);
-    let diffY = Math.abs(pt1.y - pt2.y);
+
+    let diffX = Math.abs(pt2.x - pt1.x);
+    let diffY = Math.abs(pt2.y - pt1.y);
     let diff = (diffX + diffY) / 2;
+
+    /*
+    let diffX = pt2.x - pt1.x;
+    let diffY = pt2.y - pt1.y;
+    let diff = Math.abs(diffX + diffY) / 2;
+    */
+
+
     return diff;
 }
 
@@ -1067,7 +1114,7 @@ export function reducePoints(points, maxPoints = 48) {
 }
 
 
-export function mirrorCpts(cpt2_0, pt0, cpt2, pt1, outgoing = true, t=0.666) {
+export function mirrorCpts(cpt2_0, pt0, cpt2, pt1, outgoing = true, t = 0.666) {
 
     // hypotenuse angle
     let ang0 = getAngle(pt0, pt1, true);
