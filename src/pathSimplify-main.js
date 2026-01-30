@@ -11,7 +11,7 @@ import { optimizeClosePath, pathDataToTopLeft } from './svgii/pathData_reorder';
 import { reversePathData } from './svgii/pathData_reverse';
 import { addExtremePoints, splitSubpaths } from './svgii/pathData_split';
 import { pathDataToD } from './svgii/pathData_stringify';
-import { pathDataToPolyPlus } from './svgii/pathData_toPolygon';
+//import { pathDataToPolyPlus, pathDataToPolySingle } from './svgii/pathData_toPolygon';
 import { analyzePoly } from './svgii/poly_analyze';
 import { getCurvePathData } from './svgii/poly_to_pathdata';
 import { detectAccuracy } from './svgii/rounding';
@@ -19,10 +19,13 @@ import { cleanUpSVG } from './svgii/svg_cleanup';
 import { renderPoint } from './svgii/visualize';
 
 export function svgPathSimplify(input = '', {
+
+    // return svg markup or object
+    getObject = false,
+
     toAbsolute = true,
     toRelative = true,
     toShorthands = true,
-    decimals = 3,
     //optimize = 0,
 
     // not necessary unless you need cubics only
@@ -32,19 +35,24 @@ export function svgPathSimplify(input = '', {
     arcToCubic = false,
     cubicToArc = false,
 
-    // arc to cubic precision - adds more segments for better precision     
-    arcAccuracy = 4,
-    keepExtremes = true,
-    keepCorners = true,
-    keepInflections = true,
-    extrapolateDominant = false,
-    addExtremes = false,
+
+    simplifyBezier = true,
     optimizeOrder = true,
     removeColinear = true,
-    simplifyBezier = true,
-    autoAccuracy = true,
     flatBezierToLinetos = true,
     revertToQuadratics = true,
+
+    keepExtremes = true,
+    keepCorners = true,
+    extrapolateDominant = true,
+    keepInflections = false,
+    addExtremes = false,
+
+
+    // svg path optimizations
+    decimals = 3,
+    autoAccuracy = true,
+
     minifyD = 0,
     tolerance = 1,
     reverse = false,
@@ -53,8 +61,6 @@ export function svgPathSimplify(input = '', {
     removeHidden = true,
     removeUnused = true,
 
-    // return svg markup or object
-    getObject = false
 
 } = {}) {
 
@@ -165,7 +171,7 @@ export function svgPathSimplify(input = '', {
 
             //console.log(pathDataPlus);
 
-            pathData = simplifyBezier ? simplifyPathData(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
+            pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
 
             // cubic to arcs
@@ -196,19 +202,39 @@ export function svgPathSimplify(input = '', {
                     if (type === 'C') {
                         //console.log(com);
                         let comQ = revertCubicQuadratic(p0, cp1, cp2, p)
-                        if (comQ.type === 'Q') pathData[c] = comQ
+                        if (comQ.type === 'Q') {
+                            /*
+                            comQ.p0 = com.p0
+                            comQ.cp1 = {x:comQ.values[0], y:comQ.values[1]}
+                            comQ.p = com.p
+                            */
+                            comQ.extreme = com.extreme
+                            comQ.corner = com.corner
+                            comQ.dimA = com.dimA
+
+                            pathData[c] = comQ
+                        }
                     }
                 })
             }
 
+            //if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, tolerance, flatBezierToLinetos);
+
             // optimize close path
-            if(optimizeOrder) pathData=optimizeClosePath(pathData)
+            if (optimizeOrder) pathData = optimizeClosePath(pathData)
+
+
+
+
+            // poly
+            //let poly = pathDataToPolySingle(pathData, true)
+            //console.log('poly', poly);
+
 
             // update
             pathDataArrN.push(pathData)
         }
 
-        
         // flatten compound paths 
         pathData = pathDataArrN.flat();
 
@@ -299,7 +325,7 @@ export function svgPathSimplify(input = '', {
 
 
 
-function simplifyPathData(pathData, {
+function simplifyPathDataCubic(pathData, {
     keepExtremes = true,
     keepInflections = true,
     keepCorners = true,
@@ -347,6 +373,8 @@ function simplifyPathData(pathData, {
                 if (combined.length === 1) {
                     com = combined[0]
                     let offset = 1;
+
+                    // add cumulative error to prevent distortions
                     error += com.error;
                     //console.log('!error', error);
 
@@ -365,6 +393,9 @@ function simplifyPathData(pathData, {
 
                         let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance)
                         if (combined.length === 1) {
+                            // add cumulative error to prevent distortions
+                            //console.log('combined', combined);
+                            error += combined[0].error * 0.5;
                             offset++
                         }
                         com = combined[0]

@@ -25,8 +25,12 @@ export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLine
 
         let area = getPolygonArea([p0, p, p1], true)
 
+        let distSquare0 = getSquareDistance(p0, p)
+        let distSquare1 = getSquareDistance(p, p1)
         let distSquare = getSquareDistance(p0, p1)
-        let distMax = distSquare / 100 * tolerance
+        //distSquare = (distSquare0+distSquare1) / 2;
+
+        let distMax = distSquare / 200 * tolerance
 
         let isFlat = area < distMax;
         let isFlatBez = false;
@@ -67,8 +71,10 @@ export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLine
         p0 = p;
 
         // colinear – exclude arcs (as always =) as semicircles won't have an area
-        if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez))) {
+        //&& comN.type==='L'
+        if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) && comN.type==='L' ) {
             //console.log(area,distMax );
+            //renderPoint(markers, p)
             continue;
         }
 

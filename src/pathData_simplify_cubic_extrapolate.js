@@ -95,8 +95,7 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
     let r = sub(P, com1.p0);
 
     //let t0_2 = t0 - dot(r, dP) / dot(dP, dP);
-    //console.log(t0, t0_2);
-
+    
     t0 -= dot(r, dP) / dot(dP, dP);
 
 
@@ -131,7 +130,11 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
     }
 
 
-    let ptM = pointAtT([result.p0, result.cp1, result.cp2, result.p], 0.5, false, true)
+    let tMid = (1 - t0)*0.5 ;
+    //tMid = 0.5;
+    //console.log('t0', t0, tMid);
+
+    let ptM = pointAtT([result.p0, result.cp1, result.cp2, result.p], tMid, false, true)
     let seg1_cp2 = ptM.cpts[2]
     //let seg2_cp1 = ptM.cpts[3]
 

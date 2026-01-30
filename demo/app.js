@@ -82,6 +82,8 @@ function updateSVG(settings = {}) {
 
     console.log('pathDataOpt', pathDataOpt, 'timing', t1);
 
+    console.log(JSON.stringify(pathDataOpt, null, ' '))
+
     //pathDataOpt = svgPathSimplify(pathDataOpt.d, settings)
 
     let { d, svg, report, inputType, mode } = pathDataOpt;

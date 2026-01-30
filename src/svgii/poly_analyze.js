@@ -3,7 +3,7 @@ import { getPolygonArea } from "./geometry_area";
 import { getPolyBBox } from "./geometry_bbox";
 import { renderPoint } from "./visualize";
 
-export function analyzePoly(pts) {
+export function analyzePoly(pts, debug=false) {
 
     let l = pts.length;
     let polyArea = getPolygonArea(pts, true)
@@ -75,22 +75,26 @@ export function analyzePoly(pts) {
         /*
         */
 
-        if ((isExtreme && isCorner)) {
-            isExtreme = false;
-            directionChange = false;
-            //isCorner = false;
-        }
+        if(debug){
 
-        if (isExtreme) {
-            renderPoint(markers, pt1, 'cyan', '1%');
-        }
+            if ((isExtreme && isCorner)) {
+                isExtreme = false;
+                directionChange = false;
+                //isCorner = false;
+            }
+    
+            if (isExtreme) {
+                renderPoint(markers, pt1, 'cyan', '1%');
+            }
+    
+            if (isCorner) {
+                renderPoint(markers, pt1, 'purple', '0.5%');
+            }
+    
+            if (directionChange) {
+                renderPoint(markers, pt1, 'orange', '1.5%', '0.5');
+            }
 
-        if (isCorner) {
-            renderPoint(markers, pt1, 'purple', '0.5%');
-        }
-
-        if (directionChange) {
-            renderPoint(markers, pt1, 'orange', '1.5%', '0.5');
         }
 
 

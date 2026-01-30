@@ -27,12 +27,14 @@ function renderPoint(
 
 function detectInputType(input) {
     let type = 'string';
+    /*
     if (input instanceof HTMLImageElement) return "img";
     if (input instanceof SVGElement) return "svg";
     if (input instanceof HTMLCanvasElement) return "canvas";
     if (input instanceof File) return "file";
     if (input instanceof ArrayBuffer) return "buffer";
     if (input instanceof Blob) return "blob";
+    */
     if (Array.isArray(input)) return "array";
 
     if (typeof input === "string") {
@@ -882,6 +884,7 @@ function addExtemesToCommand(p0, values, tMin=0, tMax=1) {
 
         if(tArr.length){
             let commandsSplit = splitCommandAtTValues(p0, values, tArr);
+
             pathDataNew.push(...commandsSplit);
             extremeCount += commandsSplit.length;
         }else {
@@ -1535,6 +1538,7 @@ function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
     let dP = cubicDerivative(com2.p0, com2.cp1, com2.cp2, com2.p, t0);
     let r = sub(P, com1.p0);
 
+    
     t0 -= dot(r, dP) / dot(dP, dP);
 
     // construct merged cubic over [t0, 1]
@@ -1566,7 +1570,9 @@ function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
         };
     }
 
-    let ptM = pointAtT([result.p0, result.cp1, result.cp2, result.p], 0.5, false, true);
+    let tMid = (1 - t0)*0.5 ;
+
+    let ptM = pointAtT([result.p0, result.cp1, result.cp2, result.p], tMid, false, true);
     let seg1_cp2 = ptM.cpts[2];
 
     let ptI_1 = checkLineIntersection(ptM, seg1_cp2, result.p0, ptI, false);
@@ -2113,17 +2119,21 @@ function revertCubicQuadratic(p0 = {}, cp1 = {}, cp2 = {}, p = {}) {
     let cp1_Q = null;
     let type = 'C';
     let values = [cp1.x, cp1.y, cp2.x, cp2.y, p.x, p.y];
+    let comN = {type, values};
 
     if (dist1 < threshold) {
         cp1_Q = checkLineIntersection(p0, cp1, p, cp2, false);
         if (cp1_Q) {
 
-            type = 'Q';
-            values = [cp1_Q.x, cp1_Q.y, p.x, p.y];
+            comN.type = 'Q';
+            comN.values = [cp1_Q.x, cp1_Q.y, p.x, p.y];
+            comN.p0 = p0;
+            comN.cp1 = cp1_Q;
+            comN.p = p;
         }
     }
 
-    return { type, values }
+    return comN
 
 }
 
@@ -3500,8 +3510,11 @@ function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = t
 
         let area = getPolygonArea([p0, p, p1], true);
 
+        getSquareDistance(p0, p);
+        getSquareDistance(p, p1);
         let distSquare = getSquareDistance(p0, p1);
-        let distMax = distSquare / 100 * tolerance;
+
+        let distMax = distSquare / 200 * tolerance;
 
         let isFlat = area < distMax;
         let isFlatBez = false;
@@ -3531,7 +3544,8 @@ function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = t
         p0 = p;
 
         // colinear – exclude arcs (as always =) as semicircles won't have an area
-        if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez))) {
+
+        if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) && comN.type==='L' ) {
 
             continue;
         }
@@ -3999,10 +4013,13 @@ function stringifySVG(svg){
 }
 
 function svgPathSimplify(input = '', {
+
+    // return svg markup or object
+    getObject = false,
+
     toAbsolute = true,
     toRelative = true,
     toShorthands = true,
-    decimals = 3,
 
     // not necessary unless you need cubics only
     quadraticToCubic = true,
@@ -4011,19 +4028,22 @@ function svgPathSimplify(input = '', {
     arcToCubic = false,
     cubicToArc = false,
 
-    // arc to cubic precision - adds more segments for better precision     
-    arcAccuracy = 4,
-    keepExtremes = true,
-    keepCorners = true,
-    keepInflections = true,
-    extrapolateDominant = false,
-    addExtremes = false,
+    simplifyBezier = true,
     optimizeOrder = true,
     removeColinear = true,
-    simplifyBezier = true,
-    autoAccuracy = true,
     flatBezierToLinetos = true,
     revertToQuadratics = true,
+
+    keepExtremes = true,
+    keepCorners = true,
+    extrapolateDominant = true,
+    keepInflections = false,
+    addExtremes = false,
+
+    // svg path optimizations
+    decimals = 3,
+    autoAccuracy = true,
+
     minifyD = 0,
     tolerance = 1,
     reverse = false,
@@ -4031,9 +4051,6 @@ function svgPathSimplify(input = '', {
     // svg cleanup options
     removeHidden = true,
     removeUnused = true,
-
-    // return svg markup or object
-    getObject = false
 
 } = {}) {
 
@@ -4132,7 +4149,7 @@ function svgPathSimplify(input = '', {
             // simplify beziers
             let { pathData, bb, dimA } = pathDataPlus;
 
-            pathData = simplifyBezier ? simplifyPathData(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
+            pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
             // cubic to arcs
             if (cubicToArc) {
@@ -4161,19 +4178,31 @@ function svgPathSimplify(input = '', {
                     if (type === 'C') {
 
                         let comQ = revertCubicQuadratic(p0, cp1, cp2, p);
-                        if (comQ.type === 'Q') pathData[c] = comQ;
+                        if (comQ.type === 'Q') {
+                            /*
+                            comQ.p0 = com.p0
+                            comQ.cp1 = {x:comQ.values[0], y:comQ.values[1]}
+                            comQ.p = com.p
+                            */
+                            comQ.extreme = com.extreme;
+                            comQ.corner = com.corner;
+                            comQ.dimA = com.dimA;
+
+                            pathData[c] = comQ;
+                        }
                     }
                 });
             }
 
             // optimize close path
-            if(optimizeOrder) pathData=optimizeClosePath(pathData);
+            if (optimizeOrder) pathData = optimizeClosePath(pathData);
+
+            // poly
 
             // update
             pathDataArrN.push(pathData);
         }
 
-        
         // flatten compound paths 
         pathData = pathDataArrN.flat();
 
@@ -4256,7 +4285,7 @@ function svgPathSimplify(input = '', {
 
 }
 
-function simplifyPathData(pathData, {
+function simplifyPathDataCubic(pathData, {
     keepExtremes = true,
     keepInflections = true,
     keepCorners = true,
@@ -4300,6 +4329,8 @@ function simplifyPathData(pathData, {
                 if (combined.length === 1) {
                     com = combined[0];
                     let offset = 1;
+
+                    // add cumulative error to prevent distortions
                     error += com.error;
 
                     // find next candidates
@@ -4317,6 +4348,9 @@ function simplifyPathData(pathData, {
 
                         let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance);
                         if (combined.length === 1) {
+                            // add cumulative error to prevent distortions
+
+                            error += combined[0].error * 0.5;
                             offset++;
                         }
                         com = combined[0];

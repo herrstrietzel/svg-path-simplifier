@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simplify IIFE</title>
+
+</head>
+
+<body>
+
+
+    <script type="module">
+import { svgPathSimplify } from '../dist/svg-path-simplify.esm.min.js'
+
+let pathDataString =
+`
+M 57.13 15.5
+c 13.28 0 24.53 8.67 28.42 20.65
+c 0.94 2.91 1.45 6.01 1.45 9.23
+`
+
+// try to simplify
+let pathDataOpt = svgPathSimplify(pathDataString);
+
+// simplified pathData
+console.log(pathDataOpt)
+// returns `M 57.1 15.5c16.5 0 29.9 13.4 29.9 29.9`
+
+    </script>
+</body>
+
+</html>

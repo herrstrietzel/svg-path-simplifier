@@ -1,11 +1,13 @@
 export function detectInputType(input) {
     let type = 'string';
+    /*
     if (input instanceof HTMLImageElement) return "img";
     if (input instanceof SVGElement) return "svg";
     if (input instanceof HTMLCanvasElement) return "canvas";
     if (input instanceof File) return "file";
     if (input instanceof ArrayBuffer) return "buffer";
     if (input instanceof Blob) return "blob";
+    */
     if (Array.isArray(input)) return "array";
 
     if (typeof input === "string") {
