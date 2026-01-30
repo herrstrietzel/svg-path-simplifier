@@ -1,3 +1,19 @@
+
+// remove zero-length segments introduced by rounding
+export function removeZeroLengthLinetos_post(pathData) {
+    let pathDataOpt = []
+    pathData.forEach((com, i) => {
+        let { type, values } = com;
+        if (type === 'l' || type === 'v' || type === 'h') {
+            let hasLength = type === 'l' ? (values.join('') !== '00') : values[0] !== 0
+            if (hasLength) pathDataOpt.push(com)
+        } else {
+            pathDataOpt.push(com)
+        }
+    })
+    return pathDataOpt
+}
+
 export function removeZeroLengthLinetos(pathData) {
 
     let M = { x: pathData[0].values[0], y: pathData[0].values[1] }

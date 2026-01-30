@@ -20,7 +20,7 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
   * flat Béziers to Linetos
   * colinear lines (`L`)
 
-* reorders path starting points to strip unnecessary closing lineto commands
+* reorders path starting points to replace unnecessary closing linetos by `Z` commands
 * optimizes SVG file size by contextually converting to:  
   * shorthand commands (`C` => `S`, `Q` => `T`, `L`=>`H` or `V`)
   * cubics to quadratic Béziers  (only 1 control point)
@@ -28,6 +28,10 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
 
 * adaptive coordinate rounding: small or large details can be auto-detected to find a suitable floating point accuracy without guessing the decimal value (3 decimals may not be the silver bullet=)
 * split segments at extremes – only useful for manual editing
+* optimize either path data strings or SVG markup code
+
+### Limitations: What it's not
+This lib's focus is on path data optimizations. While it also provides some basic cleanup options for entire SVG documents (e.g removal of hidden elements or path merging) – if you need a full blown document optimization better opt for [SVGO](https://github.com/svg/svgo).  
 
 
 ## Usage 
@@ -75,7 +79,7 @@ console.log(pathDataOpt)
 // returns `M 57.1 15.5c16.5 0 29.9 13.4 29.9 29.9`
 ```
 
-#### node 
+### node.js
 Install module via npm:   
 ```
 npm install svg-path-simplify
@@ -125,6 +129,9 @@ While svg-path-simplify aims at a convenient config-free usage you can tweak the
 | toRelative | converts all commands to relative – reduces file size | Boolean | true |
 | toShorthands | converts all commands to shorthand when applicable – reduces file size | Boolean | true |
 | arcToCubic | converts elliptic arc `A` commands to cubic approximations – not recommended | Boolean | false |
+| removeHidden | removes hidden elements for SVG inputs | Boolean | true |
+| mergePaths | concatenates paths into single one – does not respect individual styles! | Boolean | false |
+
 
 
 ### Example 2: Apply options  

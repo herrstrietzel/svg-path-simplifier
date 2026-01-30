@@ -1,3 +1,12 @@
+export function removeEmptySVGEls(svg) {
+  let els = svg.querySelectorAll('g, defs');
+  els.forEach(el => {
+      if (!el.children.length) el.remove()
+  })
+}
+
+
+
 export function cleanUpSVG(svgMarkup, {
   returnDom=false, 
   removeHidden=true,
@@ -74,7 +83,7 @@ function removeNameSpaceAtts(el) {
   });
 }
 
-function stringifySVG(svg){
+export function stringifySVG(svg){
     let markup = new XMLSerializer().serializeToString(svg);
   markup = markup
   .replace(/\t/g, "")

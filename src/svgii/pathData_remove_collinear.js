@@ -72,9 +72,11 @@ export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLine
 
         // colinear – exclude arcs (as always =) as semicircles won't have an area
         //&& comN.type==='L'
-        if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) && comN.type==='L' ) {
+        if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) ) {
             //console.log(area,distMax );
             //renderPoint(markers, p)
+            
+            //if(comN.type!=='L' ){}
             continue;
         }
 
