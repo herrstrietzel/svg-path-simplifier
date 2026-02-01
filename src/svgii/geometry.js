@@ -23,19 +23,24 @@ export function getAngle(p1, p2, normalize = false) {
  * http://jsfiddle.net/justin_c_rounds/Gd2S2/light/
  */
 
-export function checkLineIntersection(p1, p2, p3, p4, exact = true) {
+export function checkLineIntersection(p1=null, p2=null, p3=null, p4=null, exact = true, debug=false) {
     // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
     let denominator, a, b, numerator1, numerator2;
     let intersectionPoint = {}
+
+    if(!p1 || !p2 || !p3 || !p4){
+        if(debug) console.warn('points missing');
+        return false
+    }
 
     try {
         denominator = ((p4.y - p3.y) * (p2.x - p1.x)) - ((p4.x - p3.x) * (p2.y - p1.y));
         if (denominator == 0) {
             return false;
         }
-
     } catch {
-        console.log('!catch', p1, p2, 'p3:', p3, p4);
+        if(debug) console.warn('!catch', p1, p2, 'p3:', p3, 'p4:', p4);
+        return false
     }
 
     a = p1.y - p3.y;
@@ -51,9 +56,6 @@ export function checkLineIntersection(p1, p2, p3, p4, exact = true) {
         x: p1.x + (a * (p2.x - p1.x)),
         y: p1.y + (a * (p2.y - p1.y))
     }
-
-    // console.log('intersectionPoint', intersectionPoint, p1, p2);
-
 
 
     let intersection = false;
@@ -874,156 +876,8 @@ export function intersectLines(p1, p2, p3, p4) {
 
 
 
-/**
- * check polygon flatness helper  
- * basically a reduced shoelace algorithm
- */
-export function commandIsFlat0(points, tolerance = 0.025) {
 
 
-    let xArr = points.map(pt => { return pt.x })
-    let yArr = points.map(pt => { return pt.y })
-
-    let xMin = Math.min(...xArr)
-    let xMax = Math.max(...xArr)
-    let yMin = Math.min(...yArr)
-    let yMax = Math.max(...yArr)
-    let w = xMax - xMin
-    let h = yMax - yMin
-
-
-    if (points.length < 3 || (w === 0 || h === 0)) {
-        return { area: 0, flat: true, thresh: 0.0001, ratio: 0 };
-    }
-
-    tolerance = 0.5;
-    let thresh = (w + h) * 0.5 * tolerance;
-
-
-    //let thresh = tolerance;
-    //console.log('w,h', w, h, thresh);
-
-    let area = 0;
-    for (let i = 0; i < points.length; i++) {
-        let addX = points[i].x;
-        let addY = points[i === points.length - 1 ? 0 : i + 1].y;
-        let subX = points[i === points.length - 1 ? 0 : i + 1].x;
-        let subY = points[i].y;
-        area += addX * addY * 0.5 - subX * subY * 0.5;
-    }
-
-    //console.log('flatArea', area, points);
-    area = +Math.abs(area).toFixed(9);
-
-    let ratio = area / thresh;
-    let isFlat = area === 0 ? true : (ratio < 0.15 ? true : false);
-    //isFlat= false
-
-    return { area: area, flat: isFlat, thresh: thresh, ratio: ratio };
-}
-
-
-export function commandIsFlat(points, tolerance = 0.025) {
-
-    let p0 = points[0];
-    let p = points[points.length - 1];
-
-    let xArr = points.map(pt => { return pt.x })
-    let yArr = points.map(pt => { return pt.y })
-
-    let xMin = Math.min(...xArr)
-    let xMax = Math.max(...xArr)
-    let yMin = Math.min(...yArr)
-    let yMax = Math.max(...yArr)
-    let w = xMax - xMin
-    let h = yMax - yMin
-
-
-    if (points.length < 3 || (w === 0 || h === 0)) {
-        return { area: 0, flat: true, thresh: 0.0001, ratio: 0 };
-    }
-
-    let squareDist = getSquareDistance(p0, p)
-    let squareDist1 = getSquareDistance(p0, points[0])
-    let squareDist2 = points.length > 3 ? getSquareDistance(p, points[1]) : squareDist1;
-    let squareDistAvg = (squareDist1 + squareDist2) / 2
-
-    tolerance = 0.5;
-    let thresh = (w + h) * 0.5 * tolerance;
-
-
-    //let thresh = tolerance;
-    //console.log('w,h', w, h, thresh);
-
-    let area = 0;
-    for (let i = 0, l = points.length; i < l; i++) {
-        let addX = points[i].x;
-        let addY = points[i === points.length - 1 ? 0 : i + 1].y;
-        let subX = points[i === points.length - 1 ? 0 : i + 1].x;
-        let subY = points[i].y;
-        area += addX * addY * 0.5 - subX * subY * 0.5;
-    }
-
-    //console.log('flatArea', area, points);
-    area = +Math.abs(area).toFixed(9);
-
-    let diff = Math.abs(area - squareDist);
-    let areaDiff = Math.abs(100 - (100 / area * (area + diff)))
-    let areaThresh = 1000
-
-    //let ratio = area / (squareDistAvg/areaThresh);
-    let ratio = area / (squareDistAvg);
-
-
-    //let isFlat = area === 0 ? true : (ratio < 0.15 ? true : false);
-    //let isFlat = area === 0 ? true : (area < squareDist/areaThresh ? true : false);
-
-    let isFlat = area === 0 ? true : area < squareDistAvg / areaThresh;
-
-
-    return { area: area, flat: isFlat, thresh: thresh, ratio: ratio, squareDist: squareDist, areaThresh: squareDist / areaThresh };
-}
-
-
-export function checkBezierFlatness(p0, cpts, p) {
-
-    let isFlat = false;
-
-    let isCubic = cpts.length===2;
-
-    let cp1 = cpts[0]
-    let cp2 = isCubic ? cpts[1] : cp1;
-
-    if(p0.x===cp1.x && p0.y===cp1.y && p.x===cp2.x && p.y===cp2.y) return true;
-
-    let dx1 = cp1.x - p0.x;
-    let dy1 = cp1.y - p0.y;
-
-    let dx2 = p.x - cp2.x;
-    let dy2 = p.y - cp2.y;
-
-    let cross1 = Math.abs(dx1 * dy2 - dy1 * dx2);
-
-    if(!cross1) return true
-
-    let dx0 = p.x - p0.x;
-    let dy0 = p.y - p0.y;
-    let cross0 = Math.abs(dx0 * dy1 - dy0 * dx1);
-
-    if(!cross0) return true
-
-    //let diff = Math.abs(cross0 - cross1)
-    //let rat0 = 1/cross0 * diff;
-    let rat = (cross0/cross1)
-
-    if (rat<1.1 ) {
-        //console.log('cross', cross0, cross1, 'rat', rat, rat0, diff );
-        isFlat = true;
-    }
-
-    return isFlat;
-
-}
 
 /**
  * sloppy distance calculation
@@ -1040,7 +894,6 @@ export function getDistAv(pt1, pt2) {
     let diffY = pt2.y - pt1.y;
     let diff = Math.abs(diffX + diffY) / 2;
     */
-
 
     return diff;
 }

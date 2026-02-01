@@ -2,6 +2,7 @@ import { pointAtT, svgArcToCenterParam, getBezierExtremeT  } from "./geometry";
 import { renderPoint, renderPath } from "./visualize";
 
 
+
 /**
  * split segments into chunks to
  * prevent simplification across 

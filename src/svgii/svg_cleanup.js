@@ -1,3 +1,6 @@
+
+
+
 export function removeEmptySVGEls(svg) {
   let els = svg.querySelectorAll('g, defs');
   els.forEach(el => {
@@ -22,7 +25,7 @@ export function cleanUpSVG(svgMarkup, {
     .querySelector("svg");
   
   
-  let allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class'];
+  let allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class', 'fill', 'stroke', 'stroke-width'];
   removeExcludedAttribues(svg, allowed)
   
   let removeEls = ['metadata', 'script']

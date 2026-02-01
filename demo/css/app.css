@@ -1,3 +1,8 @@
+:root {
+    --sidebar-width: clamp(25ch, 45ch, 50ch);
+    --strokeWidthPrev: 0.3%;
+}
+
 .hgh-100vh {
     height: 100vh
 }
@@ -51,9 +56,6 @@ body {
 * grid main 
 */
 
-:root {
-    --sidebar-width: clamp(25ch, 45ch, 50ch);
-}
 
 .grd-main {
     display: grid;
@@ -106,7 +108,22 @@ body {
 
     /* move in sidebar */
     .navToggle {
-        transform: translateX(-5ch);
+        background: var(--color-focus);
+        --color-icon: var(--color-background);
+        border-radius: 50%;
+        text-align: center;
+        align-items: center;
+        font-size: 1.5em;
+        padding: 0.4em;
+        gap: 0;
+
+        transform: translateX(-6ch) translateY(-0.5em);
+
+        &:before {
+            display: none;
+        }
+
+
     }
 
     .grd-main {
@@ -117,6 +134,11 @@ body {
         width: 100%;
     }
 }
+
+
+
+
+
 
 @media (max-width:480px) {
 
@@ -157,13 +179,18 @@ body {
         grid-template-columns: 1fr 1fr;
     }
 
-    .navToggle {
-        transform: translateX(0ch);
-    }
+    .navToggle {}
+
+
 
     body:has(.showNav:checked) {
         .navToggle {
             transform: translateX(0ch);
+            background-color: transparent;
+            padding: 0;
+            --color-icon: var(--color-focus);
+            border-radius: 0;
+
         }
 
         .preview {
@@ -246,13 +273,13 @@ canvas {
 
     .pathO {
         stroke: #ccc;
-        stroke-width: 0.75%;
+        stroke-width: calc(var(--strokeWidthPrev, 0.3%) * 4 / var(--zoomScale));
     }
 
 
     .pathS {
         stroke: var(--color-focus);
-        stroke-width: 0.3%;
+        stroke-width: calc(var(--strokeWidthPrev, 0.3%) / var(--zoomScale));
     }
 
 }
@@ -266,21 +293,34 @@ canvas {
 
     .svgWrap {
 
-        path, circle, ellipse, polygon, polyline, line, rect{
+        path,
+        circle,
+        ellipse,
+        polygon,
+        polyline,
+        line,
+        rect {
             fill: none;
             stroke: var(--color-focus);
-            stroke-width: 0.3%;
-            stroke-linecap:square;
+            stroke-width: var(--strokeWidthPrev, 0.3%);
+            stroke-linecap: square;
         }
     }
 
 
     .svgWrap path,
+    .svgWrap polyline,
+    .svgWrap polygon,
+    .svgWrap circle,
+    .svgWrap ellipse,
+    .svgWrap line,
+    .svgWrap rect,
     .pathS {
         marker-start: url(#markerStart);
         marker-mid: url(#markerRound);
         /* marker-end: url(#markerRound); */
         stroke-width: 0.3%;
+        stroke-width: calc(var(--strokeWidthPrev, 0.3%) / var(--zoomScale, 1));
 
     }
 }
@@ -401,7 +441,10 @@ canvas {
 .main {
 
     .elzoomo-toolbar {
-        left: 0.25rem;
-        top: 4rem;
+        left: 1em;
+        top: 2em;
+        --color-text: var(--color-focus);
+        color:var(--color-focus);
     }
+
 }

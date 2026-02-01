@@ -160,16 +160,6 @@ export function combineCubicPairs(com1, com2, extrapolateDominant = false, toler
 
 
     
-    /*
-    if (extrapolateDominant && com2.extreme) {
-        renderPoint(markers, com2.p)
-        //renderPoint(markers, com1.p, 'cyan')
-        //extrapolateDominant = false;
-    }
-    */
-
-
-    
 
     // try extrapolated dominant curve
     //&& !com2.extreme
@@ -283,38 +273,12 @@ export function getBezierCommandArea(commands = [com1, com2], absolute = true) {
 
 function findSplitT(com1, com2) {
 
-    //let selfIntersecting = false
-
-    // control tangent intersection
-    let pt1 = checkLineIntersection(com1.p0, com1.cp1, com2.cp2, com2.p, false)
-
-    // intersection 2nd cp1 tangent and global tangent intersection
-    let ptI = checkLineIntersection(pt1, com2.p, com2.p0, com2.cp1, false)
-
-
-    let len1 = getDistance(pt1, com2.p)
-    let len2 = getDistance(ptI, com2.p)
-
-    //let t = !t3 ? 1-len2/len1 : (t3+len2/len1)*0.5
-    let t = 1 - len2 / len1
-
-
-    // check self intersections
-    //let ptI2 = checkLineIntersection(com1.cp1, com2.cp2, com1.p0, com2.p, true)
-    //let hasInfliction = ptI2!==null
-
-
     let len3 = getDistance(com1.cp2, com1.p)
     let len4 = getDistance(com1.cp2, com2.cp1)
 
-    //let t5 = 1-Math.min(len7, len8)/len9
-    t = Math.min(len3) / len4
-
-    //console.log('???selfIntersecting:', t, hasInfliction, ptI2)
+    let t = Math.min(len3) / len4
 
     return t
-
-
 }
 
 

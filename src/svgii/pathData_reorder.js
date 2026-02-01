@@ -1,10 +1,12 @@
 import { splitSubpaths, addExtemesToCommand } from './pathData_split.js';
-import { getComThresh, commandIsFlat, getPathDataVertices, getSquareDistance } from './geometry.js';
+import { getComThresh, getPathDataVertices, getSquareDistance } from './geometry.js';
 import { getPolyBBox } from './geometry_bbox.js';
 
 
 import { renderPoint, renderPath } from './visualize.js';
 import { getPolygonArea } from './geometry_area.js';
+import { checkBezierFlatness, commandIsFlat } from "./geometry_flatness.js";
+
 
 
 export function pathDataToTopLeft(pathData) {

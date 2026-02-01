@@ -3,7 +3,7 @@ import { getPathArea } from "./svgii/geometry_area";
 import { pathDataToD } from "./svgii/pathData_stringify";
 import { renderPath, renderPoint } from "./svgii/visualize";
 
-export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
+export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, debug = false) {
 
     // cubic Bézier derivative
     const cubicDerivative = (p0, p1, p2, p3, t) => {
@@ -27,8 +27,10 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
     let commands = [com1, com2]
 
     // detect dominant 
-    let dist1 = getSquareDistance(com1.p0, com1.p)
-    let dist2 = getSquareDistance(com2.p0, com2.p)
+    let dist1 = getDistAv(com1.p0, com1.p)
+    let dist2 = getDistAv(com2.p0, com2.p)
+
+
     let reverse = dist1 > dist2;
 
     //let ang1 = getAngle(com1.p0, com1.cp1)
@@ -42,6 +44,7 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
 
     if (!ptI) {
         //renderPoint(markers, com1.p, 'purple')
+        //console.log('nope');
         return commands
     }
 
@@ -95,12 +98,10 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
     let r = sub(P, com1.p0);
 
     //let t0_2 = t0 - dot(r, dP) / dot(dP, dP);
-    
+
     t0 -= dot(r, dP) / dot(dP, dP);
 
-
     // construct merged cubic over [t0, 1]
-
     let Q0 = pointAtT([com2.p0, com2.cp1, com2.cp2, com2.p], t0);
     let Q3 = com2.p;
 
@@ -130,35 +131,38 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
     }
 
 
-    let tMid = (1 - t0)*0.5 ;
+    let tMid = (1 - t0) * 0.5;
+    let tSplit = t0 - 1;
     //tMid = 0.5;
-    //console.log('t0', t0, tMid);
+
 
     let ptM = pointAtT([result.p0, result.cp1, result.cp2, result.p], tMid, false, true)
     let seg1_cp2 = ptM.cpts[2]
     //let seg2_cp1 = ptM.cpts[3]
 
-
     let ptI_1 = checkLineIntersection(ptM, seg1_cp2, result.p0, ptI, false)
     let ptI_2 = checkLineIntersection(ptM, seg1_cp2, result.p, ptI, false)
+
+
 
 
     let cp1_2 = interpolate(result.p0, ptI_1, 1.333)
     let cp2_2 = interpolate(result.p, ptI_2, 1.333)
 
     // test self intersections and exit 
-    let cp_intersection = checkLineIntersection(com1_o.p0, cp1_2, com2_o.p, cp2_2, true )
-    if(cp_intersection){
+    let cp_intersection = checkLineIntersection(com1_o.p0, cp1_2, com2_o.p, cp2_2, true)
+    if (cp_intersection) {
         //renderPoint(markers, cp_intersection )
         return commands;
     }
 
+    if (debug) renderPoint(markers, ptM, 'purple')
 
     result.cp1 = cp1_2
     result.cp2 = cp2_2
 
-    // check distances
 
+    // check distances between original starting point and extrapolated
     let dist3 = getDistAv(com1_o.p0, result.p0)
     let dist4 = getDistAv(com2_o.p, result.p)
     let dist5 = (dist3 + dist4)
@@ -170,12 +174,28 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
     result.corner = com2_o.corner
     result.dimA = com2_o.dimA
     result.directionChange = com2_o.directionChange
+    result.type = 'C'
     result.values = [result.cp1.x, result.cp1.y, result.cp2.x, result.cp2.y, result.p.x, result.p.y]
 
 
-
-    // check if completely off
+    // extrapolated starting point is not completely off
     if (dist5 < maxDist) {
+
+        // split t to meet original mid segment start point
+        let tSplit = reverse ? 1 + t0 : Math.abs(t0);
+        //console.log('t0', t0, tMid, 'tSplit', tSplit);
+
+        let ptSplit = pointAtT([result.p0, result.cp1, result.cp2, result.p], tSplit);
+        let distSplit = getDistAv(ptSplit, com1.p)
+        //console.log('distS', distS, maxDist );
+
+        // not close enough - exit
+        if (distSplit > maxDist * tolerance) {
+            //renderPoint(markers, ptSplit, 'cyan', '1%')
+            //renderPoint(markers, com1.p, 'red', '0.5%')
+            return commands;
+        }
+
 
         // compare combined with original area
         let pathData0 = [
@@ -193,26 +213,21 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1) {
         let areaN = getPathArea(pathDataN)
         let areaDiff = Math.abs(areaN / area0 - 1)
 
-        result.error = areaDiff * 10 * tolerance;
+        result.error = areaDiff * 5 * tolerance;
         //result.error = areaDiff + dist5;
 
-        let d = pathDataToD(pathDataN)
 
-        // success
-        if (areaDiff < 0.01) {
-            commands = [result];
-            //renderPath(markers, d, 'orange')
-            //console.log('areaDiff', areaDiff);
-
-        } else {
-            // renderPath(markers, d, 'red')
-            // console.log('areaDiff', areaDiff);
+        if (debug) {
+            let d = pathDataToD(pathDataN)
+            renderPath(markers, d, 'orange')
         }
 
-
-        //renderPath(markers, d, 'orange')
+        // success!!!
+        if (areaDiff < 0.05 * tolerance) {
+            commands = [result];
+            //console.log('areaDiff', areaDiff);
+        } 
     }
-
 
 
     //console.log(commands);

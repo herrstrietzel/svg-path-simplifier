@@ -79,8 +79,9 @@ function updateSVG(settings = {}) {
     let t0 = performance.now();
     let pathDataOpt = svgPathSimplify(dInput, settings)
     let t1 = performance.now() - t0;
-
     console.log('pathDataOpt', pathDataOpt, 'timing', t1);
+
+
 
     //console.log(JSON.stringify(pathDataOpt, null, ' '))
 
@@ -95,7 +96,7 @@ function updateSVG(settings = {}) {
         inputDecimals.value = decimals
     }
 
-    let reportText = !mode ? `${report.new}/${report.original} – removed: ${report.saved} compressed: ${report.compression} %` : `${report.svgSizeOpt}/${report.svgSize} KB – compressed: ${report.compression} %`
+    let reportText = !mode ? `${report.new}/${report.original} – removed: ${report.saved} compressed: ${report.compression}%` : `${report.svgSizeOpt}/${report.svgSize} KB – compressed: ${report.compression}%`
 
     // update report
     commandInfo.textContent = reportText

@@ -21,7 +21,7 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c --watch",
-    "test": "node test.js"
+    "test": "node testSVG.js"
   },
   "devDependencies": {
     "@rollup/plugin-terser": "^0.4.4",
@@ -31,12 +31,14 @@
   "keywords": [
     "bezier-simplification",
     "svg-minification",
-    "simplification"
+    "simplification",
+    "svg"
   ],
   "author": "herrstrietzel",
   "license": "GPL-2.0",
   "description": "Simplify Bézier paths while maintaining their shape",
   "dependencies": {
+    "linkedom": "^0.18.12",
     "svg-path-simplify": "^0.0.5",
     "terser": "^5.43.1"
   },

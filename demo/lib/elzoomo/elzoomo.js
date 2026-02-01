@@ -12,13 +12,11 @@ function initZoomEls() {
         let options = JSON.parse(el.dataset.zoom);
         initZoomEl(el, options);
 
-
-
         let child = el.children[0]
         let rect = child.getBoundingClientRect();
         let mtx0 = { a: 1, b: 0, c: 0, d: 1, e: 0, f: rect.top };
         el.style.transform=`matrix(${Object.values(mtx0).join(', ')})`
-
+        el.style.setProperty('--zoomScale', mtx0.a ) 
 
     });
 }
@@ -59,6 +57,7 @@ function addElZoomoStyles() {
                 cursor:pointer;
                 padding:0;
                 margin:0;
+                color: currentColor;
             }
     
             .elzoomo-el:hover{
@@ -88,6 +87,7 @@ function initZoomEl(el, options) {
 
     const setTransforms = (el, mtx) => {
         el.style.transform = `matrix(${Object.values(mtx).join(", ")})`;
+        el.style.setProperty('--zoomScale', mtx.a ) 
     };
 
     // initial scale

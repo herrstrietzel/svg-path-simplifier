@@ -1,4 +1,5 @@
 
+/*
 // remove zero-length segments introduced by rounding
 export function removeZeroLengthLinetos_post(pathData) {
     let pathDataOpt = []
@@ -13,6 +14,7 @@ export function removeZeroLengthLinetos_post(pathData) {
     })
     return pathDataOpt
 }
+*/
 
 export function removeZeroLengthLinetos(pathData) {
 
@@ -26,13 +28,21 @@ export function removeZeroLengthLinetos(pathData) {
         let com = pathData[c];
         let { type, values } = com;
 
-        let valsL = values.slice(-2);
-        p = { x: valsL[0], y: valsL[1] };
+        let valsLen = values.length;
+        //let valsL = values.slice(-2);
+        //p = { x: valsL[0], y: valsL[1] };
+        p = { x: values[valsLen-2], y: values[valsLen-1] };
 
         // skip lineto
         if (type === 'L' && p.x === p0.x && p.y === p0.y) {
             continue
         }
+
+        // skip minified zero length
+        if (type === 'l' || type === 'v' || type === 'h') {
+            let noLength = type === 'l' ? (values.join('') === '00') : values[0] === 0;
+            if(noLength) continue
+        } 
 
         pathDataN.push(com)
         p0 = p;

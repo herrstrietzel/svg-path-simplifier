@@ -2,11 +2,13 @@ import { detectInputType } from './detect_input';
 import { combineCubicPairs } from './pathData_simplify_cubic';
 import { getPathDataVertices, pointAtT } from './svgii/geometry';
 import { getPolyBBox } from './svgii/geometry_bbox';
-import { analyzePathData, analyzePathData2 } from './svgii/pathData_analyze';
+import { analyzePathData } from './svgii/pathData_analyze';
 import { combineArcs, convertPathData, cubicCommandToArc, revertCubicQuadratic } from './svgii/pathData_convert';
 import { parsePathDataNormalized } from './svgii/pathData_parse';
+import { shapeElToPath } from './svgii/pathData_parse_els';
 import { pathDataRemoveColinear } from './svgii/pathData_remove_collinear';
-import { removeZeroLengthLinetos, removeZeroLengthLinetos_post } from './svgii/pathData_remove_zerolength';
+import { removeOrphanedM } from './svgii/pathData_remove_orphaned';
+import { removeZeroLengthLinetos } from './svgii/pathData_remove_zerolength';
 import { optimizeClosePath, pathDataToTopLeft } from './svgii/pathData_reorder';
 import { reversePathData } from './svgii/pathData_reverse';
 import { addExtremePoints, splitSubpaths } from './svgii/pathData_split';
@@ -15,6 +17,7 @@ import { pathDataToD } from './svgii/pathData_stringify';
 import { analyzePoly } from './svgii/poly_analyze';
 import { getCurvePathData } from './svgii/poly_to_pathdata';
 import { detectAccuracy } from './svgii/rounding';
+import { refineAdjacentExtremes } from './svgii/simplify_refineExtremes';
 import { cleanUpSVG, removeEmptySVGEls, stringifySVG } from './svgii/svg_cleanup';
 import { renderPoint } from './svgii/visualize';
 
@@ -42,11 +45,13 @@ export function svgPathSimplify(input = '', {
     flatBezierToLinetos = true,
     revertToQuadratics = true,
 
+    refineExtremes = true,
     keepExtremes = true,
     keepCorners = true,
     extrapolateDominant = true,
     keepInflections = false,
     addExtremes = false,
+    removeOrphanSubpaths = false,
 
 
     // svg path optimizations
@@ -61,6 +66,7 @@ export function svgPathSimplify(input = '', {
     mergePaths = false,
     removeHidden = true,
     removeUnused = true,
+    shapesToPaths = true,
 
 
 } = {}) {
@@ -105,6 +111,14 @@ export function svgPathSimplify(input = '', {
         svg = cleanUpSVG(input, { returnDom, removeHidden, removeUnused }
         );
 
+        if(shapesToPaths){
+            let shapes = svg.querySelectorAll('polygon, polyline, line, rect, circle, ellipse');
+            shapes.forEach(shape=>{
+                let path = shapeElToPath(shape);
+                shape.replaceWith(path)
+            })
+        }
+
         // collect paths
         let pathEls = svg.querySelectorAll('path')
         pathEls.forEach(path => {
@@ -132,14 +146,22 @@ export function svgPathSimplify(input = '', {
     paths.forEach(path => {
         let { d, el } = path;
 
+        ///let t0 = performance.now()
         let pathDataO = parsePathDataNormalized(d, { quadraticToCubic, toAbsolute, arcToCubic });
-        //console.log(pathDataO);
-
-        // create clone for fallback
-        let pathData = JSON.parse(JSON.stringify(pathDataO));
+        //console.log('pathDataO', pathDataO);
 
         // count commands for evaluation
         let comCount = pathDataO.length
+
+
+        // create clone for fallback
+        //let pathData = JSON.parse(JSON.stringify(pathDataO));
+        let pathData = pathDataO;
+        //let t1 = performance.now() - t0;
+        //console.log('t1', t1);
+
+
+        if(removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
 
         /**
          * get sub paths
@@ -182,8 +204,17 @@ export function svgPathSimplify(input = '', {
             //let pathDataN = pathData;
 
             //console.log(pathDataPlus);
-
+            //let t0=performance.now()
             pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
+            //let t1=performance.now() - t0;
+            //console.log('t1', t1);
+
+
+            // refine extremes
+            if(refineExtremes){
+                let thresholdEx = (bb.width + bb.height) / 2 * 0.05
+                pathData = refineAdjacentExtremes(pathData, {threshold:thresholdEx, tolerance})
+            }
 
 
             // cubic to arcs
@@ -205,6 +236,9 @@ export function svgPathSimplify(input = '', {
                 pathData = combineArcs(pathData)
 
             }
+
+
+
 
 
             // simplify to quadratics
@@ -231,6 +265,7 @@ export function svgPathSimplify(input = '', {
             }
 
             //if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, tolerance, flatBezierToLinetos);
+
 
             // optimize close path
             if (optimizeOrder) pathData = optimizeClosePath(pathData)
@@ -260,13 +295,17 @@ export function svgPathSimplify(input = '', {
              */
             if (autoAccuracy) {
                 decimals = detectAccuracy(pathData)
+                pathOptions.decimals = decimals
+                //console.log('!decimals', decimals);
             }
+
+            //console.log('autoAccuracy', autoAccuracy, decimals);
 
             // optimize path data
             pathData = convertPathData(pathData, pathOptions)
 
             // remove zero-length segments introduced by rounding
-            pathData = removeZeroLengthLinetos_post(pathData);
+            pathData = removeZeroLengthLinetos(pathData);
 
             // compare command count
             let comCountS = pathData.length
@@ -301,7 +340,8 @@ export function svgPathSimplify(input = '', {
             let pathData = convertPathData(pathData_merged, pathOptions)
 
             // remove zero-length segments introduced by rounding
-            pathData = removeZeroLengthLinetos_post(pathData);
+            //pathData = removeZeroLengthLinetos_post(pathData);
+            pathData = removeZeroLengthLinetos(pathData);
 
 
             let dOpt = pathDataToD(pathData, minifyD)
@@ -419,6 +459,7 @@ function simplifyPathDataCubic(pathData, {
                             // add cumulative error to prevent distortions
                             //console.log('combined', combined);
                             error += combined[0].error * 0.5;
+                            //error += combined[0].error * 1;
                             offset++
                         }
                         com = combined[0]

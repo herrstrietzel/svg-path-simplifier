@@ -1,5 +1,6 @@
-import { checkBezierFlatness, getDistAv, getSquareDistance } from "./geometry.js";
+import { getDistAv, getSquareDistance } from "./geometry.js";
 import { getPolygonArea } from "./geometry_area.js";
+import { checkBezierFlatness, commandIsFlat } from "./geometry_flatness.js";
 import { renderPoint } from "./visualize.js";
 
 export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = true) {
@@ -50,6 +51,7 @@ export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLine
             //let areaBez = getPolygonArea([p0, ...cpts, p], true)
 
             isFlatBez = checkBezierFlatness(p0, cpts, p)
+            //isFlatBez = commandIsFlat([p0, ...cpts, p]).flat
            // console.log();
 
             //isFlatBez = areaBez < distMax * 0.25
