@@ -54,7 +54,7 @@
                 <p>Enter your SVG pathData or complete file markup.</p>
 
                 <p><input type="file" class="dsp-non --btn-neg" id="inputFile" name="svgFile" value="upload"
-                        data-label="Upload file" accept=".svg"></p>
+                        data-label="Upload file" accept=".svg" data-ignore="true"></p>
 
 
                 <p class="--btn-neg" data-ui="reset"></p>
@@ -76,10 +76,9 @@
                     <label><input type="checkbox" name="arcToCubic">arcToCubic</label>
                     <label><input type="checkbox" name="quadraticToCubic" checked>quadraticToCubic</label>
                     <label><input type="checkbox" name="removeHidden" checked>removeHidden</label>
-                    <label><input type="checkbox" name="mergePaths" >mergePaths</label>
-                    <label><input type="checkbox" name="shapesToPaths" data-info="convert shapes like circles, rects to path elements">shapesToPaths</label>
-
-                    
+                    <label><input type="checkbox" name="mergePaths">mergePaths</label>
+                    <label><input type="checkbox" name="shapesToPaths"
+                            data-info="convert shapes like circles, rects to path elements">shapesToPaths</label>
                 </p>
 
 
@@ -91,6 +90,8 @@
                 <h3>Simplification</h3>
                 <p>
                     <label><input type="checkbox" name="simplifyBezier" checked>simplifyBezier</label>
+                    <label><input type="checkbox" name="removeZeroLength" checked>remove zero length commands</label>
+
                     <label><input type="checkbox" name="removeColinear" checked>remove colinear linetos</label>
 
                     <label><input type="checkbox" name="flatBezierToLinetos" checked>flat beziers to linetos</label>
@@ -113,7 +114,7 @@
                     <label><input type="checkbox" name="cubicToArc"
                             data-info="Reverts cubic to arcs if applicable">cubicToArc</label>
 
-                            <!-- 
+                    <!-- 
                                 <label><input type="checkbox" name="reverse">try with reversed drawing direction</label>
             
                                 <label><input type="checkbox" name="multipass"
@@ -121,10 +122,11 @@
                             -->
 
 
-
-                            <label><input type="checkbox" name="removeOrphanSubpaths" data-info="remove orphaned M commands not connecting to lines or curve segments" checked>removeOrphanSubpaths</label>
-                            <label><input type="checkbox" name="refineExtremes">refineExtremes</label>
-                            <label><input type="checkbox" name="addExtremes">addExtremes</label>
+                    <label><input type="checkbox" name="removeOrphanSubpaths"
+                            data-info="remove orphaned M commands not connecting to lines or curve segments"
+                            checked>removeOrphanSubpaths</label>
+                    <label><input type="checkbox" name="refineExtremes">refineExtremes</label>
+                    <label><input type="checkbox" name="addExtremes">addExtremes</label>
 
 
 
@@ -135,8 +137,6 @@
                             data-info="higher tolerance = sloppier approximations – default 1"></label>
                 </p>
 
-
-                <p id="commandInfo"></p>
 
                 <h3>SVG settings</h3>
                 <p>
@@ -162,18 +162,17 @@
 
                 <p>
                     <label>Output SVG
-                        <textarea name="dOutput" id="outputSvg"
-                            data-tools="size upload copy"></textarea>
+                        <textarea name="dOutput" id="outputSvg" data-tools="size copy"
+                            data-file="simple.svg"></textarea>
                     </label>
                 </p>
-
-
 
             </aside>
         </div>
 
         <!--main-->
         <main class="main --spn-ld-2 --spn-ld-3 scrollbar scroll-content pst-rlt">
+
 
             <header class="pst-sticky --pdd-1em z-ind-1000 pdd-1em">
                 <label class="navToggle"><input type="checkbox" name="showNav" class="showNav"
@@ -186,6 +185,25 @@
                     </svg>
                 </a>
             </header>
+
+            <footer class="footer pst-abs btt-0 lft-0 rgh-0 z-ind-1000">
+                <div class="footer-wrp dsp-flx alg-itm-cnt pdd-1em">
+                    <p id="commandInfo"></p>
+
+                    <p class="mrg-lft-aut">
+                        <button id="btnCopy" 
+                        class="btn-download btn-neg"
+                        data-icon="copy">Copy</button>
+    
+                        <a href="#" data-name="" 
+                        class="btn-download btn-neg"
+                        id="btnDownload"
+                        data-icon="arrow-down-tray" 
+                        download="simplified.svg"
+                        > Download SVG</a>
+                    </p>
+                </div>
+            </footer>
 
             <!--preview-->
             <div id="previewWrp" class="preview --pdd-1em pst-rlt">

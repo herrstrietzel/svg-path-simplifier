@@ -1,53 +1,45 @@
 import { getSquareDistance } from "./geometry";
 import { getPolygonArea } from "./geometry_area";
 
-export function commandIsFlat(points, tolerance = 0.025) {
+export function commandIsFlat(points, {
+    tolerance = 1,
+    debug=false
+} = {}) {
+
+    let isFlat=false;
+    let report = {
+        flat:true,
+        steepness:0
+    }
 
     let p0 = points[0];
     let p = points[points.length - 1];
 
-    let xArr = points.map(pt => { return pt.x })
-    let yArr = points.map(pt => { return pt.y })
-
-    let xMin = Math.min(...xArr)
-    let xMax = Math.max(...xArr)
-    let yMin = Math.min(...yArr)
-    let yMax = Math.max(...yArr)
-    let w = xMax - xMin
-    let h = yMax - yMin
+    let xSet = new Set([...points.map(pt => +pt.x.toFixed(8))])
+    let ySet = new Set([...points.map(pt => +pt.y.toFixed(8))])
 
 
-    if (points.length < 3 || (w === 0 || h === 0)) {
-        return { area: 0, flat: true, thresh: 0.0001, ratio: 0 };
-    }
+    // must be flat
+    if(xSet.size===1 || ySet.size===1) return !debug ? true : report;
 
     let squareDist = getSquareDistance(p0, p)
-    let squareDist1 = getSquareDistance(p0, points[0])
-    let squareDist2 = points.length > 3 ? getSquareDistance(p, points[1]) : squareDist1;
-    let squareDistAvg = (squareDist1 + squareDist2) / 2
-
-    tolerance = 0.5;
-    let thresh = (w + h) * 0.5 * tolerance;
-
-    //let thresh = tolerance;
+    let threshold = squareDist / 1000 * tolerance
     let area = getPolygonArea(points, true)
 
+    // flat enough
+    if(area < threshold) isFlat = true;
 
-    let diff = Math.abs(area - squareDist);
-    let areaDiff = Math.abs(100 - (100 / area * (area + diff)))
-    let areaThresh = 1000
+    if(debug){
+        report.flat = isFlat;
+        report.steepness = area/threshold
+    }
 
-    //let ratio = area / (squareDistAvg/areaThresh);
-    let ratio = area / (squareDistAvg);
-
-
-    let isFlat = area === 0 ? true : area < squareDistAvg / areaThresh;
-
-
-    return { area: area, flat: isFlat, thresh: thresh, ratio: ratio, squareDist: squareDist, areaThresh: squareDist / areaThresh };
+    return !debug ? isFlat : report;
 }
 
 
+
+// deprecated
 export function checkBezierFlatness(p0, cpts, p) {
 
     let isFlat = false;
@@ -75,13 +67,13 @@ export function checkBezierFlatness(p0, cpts, p) {
 
     if (!cross0) return true
 
-    let area = getPolygonArea([p0,...cpts, p], true)
+    let area = getPolygonArea([p0, ...cpts, p], true)
     let dist1 = getSquareDistance(p0, p)
-    let thresh = dist1/200;
+    let thresh = dist1 / 200;
 
 
-   // if(area<thresh) return true;
-    isFlat = area<thresh;
+    // if(area<thresh) return true;
+    isFlat = area < thresh;
     //console.log('area', area, thresh, isFlat);
 
 

@@ -118,6 +118,7 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
         cp1: Q1,
         cp2: Q2,
         p: Q3,
+        t0
     };
 
 
@@ -127,13 +128,17 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
             cp1: Q2,
             cp2: Q1,
             p: Q0,
+            t0
         }
     }
 
 
     let tMid = (1 - t0) * 0.5;
+    //tMid = (1 +t0) * 0.5;
     let tSplit = t0 - 1;
     //tMid = 0.5;
+
+    //console.log(1 - t0);
 
 
     let ptM = pointAtT([result.p0, result.cp1, result.cp2, result.p], tMid, false, true)
@@ -144,10 +149,10 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
     let ptI_2 = checkLineIntersection(ptM, seg1_cp2, result.p, ptI, false)
 
 
-
-
-    let cp1_2 = interpolate(result.p0, ptI_1, 1.333)
-    let cp2_2 = interpolate(result.p, ptI_2, 1.333)
+    //let tscale =(1 + t0)
+    //console.log('tscale', tscale);
+    let cp1_2 = interpolate(result.p0, ptI_1, 1.333  )
+    let cp2_2 = interpolate(result.p, ptI_2, 1.333  )
 
     // test self intersections and exit 
     let cp_intersection = checkLineIntersection(com1_o.p0, cp1_2, com2_o.p, cp2_2, true)
@@ -181,8 +186,22 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
     // extrapolated starting point is not completely off
     if (dist5 < maxDist) {
 
+        /*
+        let tTotal = 1 + Math.abs(t0);
+        let tSplit = reverse ? 1 + t0 : Math.abs(t0);
+        //tSplit = reverse ? 1 + t0 : Math.abs(t0) / tTotal;
+        //console.log('t0', t0, tMid, 'tSplit', tSplit);
+
+        let pO = pointAtT([com2_o.p0, com2_o.cp1, com2_o.cp2, com2_o.p], t0);
+*/
+
         // split t to meet original mid segment start point
         let tSplit = reverse ? 1 + t0 : Math.abs(t0);
+
+        let tTotal = 1 + Math.abs(t0);
+        tSplit = reverse ? 1 + t0 : Math.abs(t0) / tTotal;
+
+
         //console.log('t0', t0, tMid, 'tSplit', tSplit);
 
         let ptSplit = pointAtT([result.p0, result.cp1, result.cp2, result.p], tSplit);
@@ -190,7 +209,7 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
         //console.log('distS', distS, maxDist );
 
         // not close enough - exit
-        if (distSplit > maxDist * tolerance) {
+        if (distSplit > maxDist * tolerance ) {
             //renderPoint(markers, ptSplit, 'cyan', '1%')
             //renderPoint(markers, com1.p, 'red', '0.5%')
             return commands;
@@ -216,6 +235,7 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
         result.error = areaDiff * 5 * tolerance;
         //result.error = areaDiff + dist5;
 
+        //debug=true;
 
         if (debug) {
             let d = pathDataToD(pathDataN)

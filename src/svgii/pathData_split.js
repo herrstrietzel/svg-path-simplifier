@@ -125,31 +125,58 @@ export function getPathDataPlusChunks(pathDataPlus = [], debug = false) {
  * split compound paths into 
  * sub path data array
  */
+
 export function splitSubpaths(pathData) {
-
     let subPathArr = [];
+    let current = [pathData[0]];
+    let l = pathData.length;
 
-    //split segments after M command
-    
-    try{
-        let subPathIndices = pathData.map((com, i) => (com.type.toLowerCase() === 'm' ? i : -1)).filter(i => i !== -1);
+    for (let i = 1; i < l; i++) {
+        let com = pathData[i];
 
-    }catch{
-        console.log('catch', pathData);
+        if (com.type === 'M' || com.type === 'm') {
+            subPathArr.push(current);
+            current = [];
+        }
+        current.push(com);
     }
 
+    if (current.length) subPathArr.push(current);
 
-    let subPathIndices = pathData.map((com, i) => (com.type.toLowerCase() === 'm' ? i : -1)).filter(i => i !== -1);
-    //let subPathIndices = pathData.map((com, i) => (com.type === 'M' ? i : -1)).filter(i => i !== -1);
+    //console.log(subPathArr);
+    return subPathArr;
+}
 
-    // no compound path
-    if (subPathIndices.length === 1) {
-        return [pathData]
+
+
+export function splitSubpaths0(pathData) {
+
+    let indices = [0];
+    let l = pathData.length;
+    //let com
+    //console.log(pathData);
+
+    if(!l) return [];
+
+    //find split segments indices introduced by M commands 
+    for(let i=1; i<l; i++){
+        let type= pathData[i].type.toLowerCase(); 
+        if(type==='m') indices.push(i)
     }
-    subPathIndices.forEach((index, i) => {
-        subPathArr.push(pathData.slice(index, subPathIndices[i + 1]));
-    });
+    //console.log(indices);
 
+    // only one sub path
+    let len = indices.length;
+    if(len===1) return [pathData];
+
+    let subPathArr = new Array(len);
+
+    for(let i=0; i<len; i++){
+        let idx = indices[i]
+        subPathArr[i] = pathData.slice(idx, indices[i + 1]);
+    }
+
+    //console.log(subPathArr);
     return subPathArr;
 }
 

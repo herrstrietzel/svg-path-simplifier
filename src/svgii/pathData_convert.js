@@ -55,13 +55,19 @@ export function convertPathData(pathData, {
     decimals = 3
 } = {}) {
 
+
+    //console.log(toShorthands, toRelative, decimals);
+
     //if(decimals>-1 && decimals<2) pathData = roundPathData(pathData, decimals);
     if (toShorthands) pathData = pathDataToShorthands(pathData);
 
     // pre round - before relative conversion to minimize distortions
-    pathData = roundPathData(pathData, decimals);
+    if(decimals>-1 && toRelative) pathData = roundPathData(pathData, decimals);
     if (toRelative) pathData = pathDataToRelative(pathData);
     if (decimals > -1) pathData = roundPathData(pathData, decimals);
+
+
+
     return pathData
 }
 
@@ -374,7 +380,7 @@ export function pathDataToLonghands(pathData, decimals = -1, test = true) {
  * L, L, C, Q => H, V, S, T
  * reversed method: pathDataToLonghands()
  */
-export function pathDataToShorthands(pathData, decimals = -1, test = true) {
+export function pathDataToShorthands(pathData, decimals = -1, test = false) {
 
     //pathData = JSON.parse(JSON.stringify(pathData))
     //console.log('has dec', pathData);
@@ -388,29 +394,28 @@ export function pathDataToShorthands(pathData, decimals = -1, test = true) {
         hasRel = /[astvqmhlc]/g.test(commandTokens);
     }
 
-    pathData = test && hasRel ? pathDataToAbsolute(pathData, decimals) : pathData;
+    pathData = test && hasRel ? pathDataToAbsoluteOrRelative(pathData) : pathData;
+
+    let len = pathData.length
+    let pathDataShorts = new Array(len);
 
     let comShort = {
         type: "M",
         values: pathData[0].values
     };
 
-    if (pathData[0].decimals) {
-        //console.log('has dec');
-        comShort.decimals = pathData[0].decimals
-    }
-
-    let pathDataShorts = [comShort];
+    pathDataShorts[0] = comShort;
 
     let p0 = { x: pathData[0].values[0], y: pathData[0].values[1] };
     let p;
     let tolerance = 0.01
 
-    for (let i = 1, len = pathData.length; i < len; i++) {
+    for (let i = 1; i < len; i++) {
 
         let com = pathData[i];
         let { type, values } = com;
-        let valuesLast = values.slice(-2);
+        let valuesLen = values.length;
+        let valuesLast = [values[valuesLen-2], values[valuesLen-1]];
 
         // previoius command
         let comPrev = pathData[i - 1];
@@ -462,7 +467,8 @@ export function pathDataToShorthands(pathData, decimals = -1, test = true) {
                 if (typePrev !== 'Q') {
                     //console.log('skip T:', type, typePrev);
                     p0 = { x: valuesLast[0], y: valuesLast[1] };
-                    pathDataShorts.push(com);
+                    //pathDataShorts.push(com);
+                    pathDataShorts[i] = com;
                     continue;
                 }
 
@@ -492,7 +498,9 @@ export function pathDataToShorthands(pathData, decimals = -1, test = true) {
 
                 if (typePrev !== 'C') {
                     //console.log('skip S', typePrev);
-                    pathDataShorts.push(com);
+                    //pathDataShorts.push(com);
+                    pathDataShorts[i] = com;
+
                     p0 = { x: valuesLast[0], y: valuesLast[1] };
                     continue;
                 }
@@ -525,12 +533,10 @@ export function pathDataToShorthands(pathData, decimals = -1, test = true) {
                 };
         }
 
-
         // add decimal info
         if (com.decimals || com.decimals === 0) {
             comShort.decimals = com.decimals
         }
-
 
         // round final values
         if (decimals > -1) {
@@ -538,8 +544,11 @@ export function pathDataToShorthands(pathData, decimals = -1, test = true) {
         }
 
         p0 = { x: valuesLast[0], y: valuesLast[1] };
-        pathDataShorts.push(comShort);
+        pathDataShorts[i] = comShort;
+        //pathDataShorts.push(comShort);
     }
+
+    //console.log('pathDataShorts', pathDataShorts);
     return pathDataShorts;
 }
 

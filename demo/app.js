@@ -3,6 +3,7 @@ let settings = {}
 let inputDecimals = document.querySelector('[name=decimals]')
 // preview svg for paths
 let svgEl = document.getElementById('svg')
+let lastFileName='simplified.svg';
 
 
 window.addEventListener('DOMContentLoaded', (e) => {
@@ -29,8 +30,11 @@ window.addEventListener('DOMContentLoaded', (e) => {
 
 inputFile.addEventListener('input', async (e) => {
     let file = inputFile.files[0];
-    let { size } = file;
+    let { size, name } = file;
     let sizeKB = +(size / 1024).toFixed(1)
+
+    lastFileName = name;
+    btnDownload.setAttribute('download', lastFileName);
 
     if (sizeKB > 500) {
 
@@ -90,6 +94,9 @@ function updateSVG(settings = {}) {
     let { d, svg, report, inputType, mode } = pathDataOpt;
     let { original, decimals = null } = report;
 
+
+    //lastFileName
+
     // show auto accuracy
     if (decimals !== null && inputDecimals && settings.autoAccuracy) {
         settings.decimals = decimals
@@ -141,6 +148,34 @@ function updateSVG(settings = {}) {
         svgDocEl.removeAttribute('height')
 
     }
+
+
+    let svgExport = svg ? svg : null;
+    let inIframe = window.self !== window.top;
+
+
+    // create standalone svg
+    if(!svgExport){
+
+        let viewBox = svgEl.getAttribute('viewBox').trim().split(' ').map(Number).map((val)=> +val.toFixed(decimals) )
+        let [width, height] = [viewBox[2], viewBox[3]];
+        svgExport = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox.join(' ')}"><path d="${d}"/></svg>`
+
+        //'image/svg+xml'
+        let blob = new Blob([svgExport], {type:'image/svg+xml'});
+        let objectUrl = URL.createObjectURL(blob)
+        btnDownload.href = objectUrl;
+
+        //console.log('svgExport', objectUrl);
+    }
+
+
+    btnCopy.addEventListener('click', (e)=>{
+        if (!inIframe && navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(svgExport)
+        } 
+    })
+
 
 }
 

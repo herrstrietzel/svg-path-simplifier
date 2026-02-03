@@ -9,17 +9,10 @@ export function pathDataToD(pathData, optimize = 0) {
     optimize = parseFloat(optimize)
 
 
-
     let len = pathData.length;
     let beautify = optimize > 1;
     let minify = beautify || optimize ? false : true;
 
-    // Convert first "M" to "m" if followed by "l" (when minified)
-    /*
-    if (pathData[1].type === "l" && minify) {
-        pathData[0].type = "m";
-    }
-    */
 
     let d = '';
     let separator_command = beautify ? `\n` : (minify ? '' : ' ');
@@ -43,13 +36,11 @@ export function pathDataToD(pathData, optimize = 0) {
         }
 
         // Omit type for repeated commands
-        type = (com0.type === com.type && com.type.toLowerCase() !== 'm' && minify)
+        type = (minify && com0.type === com.type && com.type.toLowerCase() !== 'm' )
             ? " "
-            : (
-                (com0.type === "M" && com.type === "L")
-            ) && minify
+            : (minify && com0.type === "M" && com.type === "L"
                 ? " "
-                : com.type;
+                : com.type);
 
 
         // concatenate subsequent floating point values

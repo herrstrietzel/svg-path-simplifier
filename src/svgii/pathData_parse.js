@@ -71,16 +71,25 @@ export function parsePathDataNormalized(d,
 ) {
 
 
+
+    //let t0=performance.now()
     let pathDataObj = parsePathDataString(d);
+    //let t1=performance.now()
+    //console.log('parsing', t1-t0);
+
     let { hasRelatives, hasShorthands, hasQuadratics, hasArcs } = pathDataObj;
     let pathData = pathDataObj.pathData;
 
     // normalize
+    //let t0=performance.now()
     pathData = normalizePathData(pathData,
         { toAbsolute, toLonghands, quadraticToCubic, arcToCubic, arcAccuracy },
         //{test:true}
         { hasRelatives, hasShorthands, hasQuadratics, hasArcs }
     )
+    //let t1=performance.now()
+    //console.log('normalizePathData', t1-t0);
+
 
     return pathData;
 }

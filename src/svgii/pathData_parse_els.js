@@ -1,22 +1,22 @@
 //import { pathDataToAbsoluteOrRelative, pathDataToLonghands, cubicToArc } from './pathData_convert.js';
 import { parsePathDataString, parsePathDataNormalized, stringifyPathData } from './pathData_parse.js';
 
-export function shapeElToPath(el){
+export function shapeElToPath(el) {
 
     let nodeName = el.nodeName.toLowerCase();
-    if(nodeName==='path')return el;
+    if (nodeName === 'path') return el;
 
     let pathData = getPathDataFromEl(el);
-    let d = pathData.map(com=>{return `${com.type} ${com.values} `}).join(' ')
-    let attributes = [...el.attributes].map(att=>att.name);
+    let d = pathData.map(com => { return `${com.type} ${com.values} ` }).join(' ')
+    let attributes = [...el.attributes].map(att => att.name);
 
     let pathN = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pathN.setAttribute('d', d );
+    pathN.setAttribute('d', d);
 
     let exclude = ['x', 'y', 'cx', 'cy', 'dx', 'dy', 'r', 'rx', 'ry', 'width', 'height', 'points']
 
-    attributes.forEach(att=>{
-        if(!exclude.includes(att)){
+    attributes.forEach(att => {
+        if (!exclude.includes(att)) {
             let val = el.getAttribute(att);
             pathN.setAttribute(att, val)
         }
@@ -29,7 +29,7 @@ export function shapeElToPath(el){
 
 
 // retrieve pathdata from svg geometry elements
-export function getPathDataFromEl(el, stringify=false) {
+export function getPathDataFromEl(el, stringify = false) {
 
     let pathData = [];
     let type = el.nodeName;
@@ -190,7 +190,9 @@ export function getPathDataFromEl(el, stringify=false) {
             attNames = ['cx', 'cy', 'rx', 'ry', 'r'];
             ({ cx, cy, r, rx, ry } = getAtts(attNames));
 
-            if (type === 'circle') {
+            let isCircle = type === 'circle';
+
+            if (isCircle) {
                 r = r;
                 rx = r
                 ry = r
@@ -199,10 +201,14 @@ export function getPathDataFromEl(el, stringify=false) {
                 ry = ry ? ry : r;
             }
 
+            // simplified radii for cirecles
+            let rxS = isCircle && r>=1 ? 1 : rx;
+            let ryS = isCircle && r>=1 ? 1 : rx;
+
             pathData = [
                 { type: "M", values: [cx + rx, cy] },
-                { type: "A", values: [rx, ry, 0, 1, 1, cx - rx, cy] },
-                { type: "A", values: [rx, ry, 0, 1, 1, cx + rx, cy] },
+                { type: "A", values: [rxS, ryS, 0, 1, 1, cx - rx, cy] },
+                { type: "A", values: [rxS, ryS, 0, 1, 1, cx + rx, cy] },
             ];
 
             break;
@@ -234,6 +240,6 @@ export function getPathDataFromEl(el, stringify=false) {
             break;
     }
 
-    return stringify ? stringifyPathData(pathData): pathData;
+    return stringify ? stringifyPathData(pathData) : pathData;
 
 };

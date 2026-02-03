@@ -21,7 +21,8 @@ export function detectAccuracy(pathData) {
 
     //console.log('detectAccuracy');
 
-    let dims = new Set();
+    //let dims = new Set();
+    let dims = [];
 
     // add average distances
     for (let i = 0, len = pathData.length; i < len; i++) {
@@ -36,7 +37,7 @@ export function detectAccuracy(pathData) {
         //let dimA = +getDistAv(p0, p).toFixed(8)
         //console.log('dimA', dimA, com.dimA, type);
 
-        if (dimA) dims.add(dimA);
+        if (dimA) dims.push(dimA);
 
         if (dimA && dimA < minDim) minDim = dimA;
         if (dimA && dimA > maxDim) maxDim = dimA;
@@ -49,7 +50,7 @@ export function detectAccuracy(pathData) {
     }
 
 
-    let dim_min = Array.from(dims).sort()
+    let dim_min = dims.sort()
 
     /*
     let minVal = dim_min.length > 15 ?
@@ -147,22 +148,23 @@ export function detectAccuracy_back(pathData) {
  * based on suggested accuracy in path data
  */
 export function roundPathData(pathData, decimals = -1) {
-    // has recommended decimals
-    let hasDecimal = decimals == 'auto' && pathData[0].hasOwnProperty('decimals') ? true : false;
-    //console.log('decimals', decimals, hasDecimal);
 
-    for (let c = 0, len = pathData.length; c < len; c++) {
-        let com = pathData[c];
-        let { type, values } = com
+    let len = pathData.length;
 
-        if (decimals > -1 || hasDecimal) {
-            decimals = hasDecimal ? com.decimals : decimals;
+    for (let c = 0; c < len; c++) {
+        //let com = pathData[c];
+        let values = pathData[c].values
+        let valLen = values.length;
 
+        if (valLen && (decimals > -1) ) {
 
-            //console.log('decimals', type, decimals);
-            pathData[c].values = com.values.map(val => { return val ? +val.toFixed(decimals) : val });
-
+            for(let v=0; v<valLen; v++){
+                //pathData[c].values[v] = values[v] ? +values[v].toFixed(decimals) : values[v];
+                pathData[c].values[v] =  +values[v].toFixed(decimals);
+            }
         }
     };
+
+    //console.log(pathData);
     return pathData;
 }

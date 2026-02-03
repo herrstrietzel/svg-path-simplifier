@@ -5,61 +5,107 @@ import { renderPoint } from "./svgii/visualize";
 
 
 
-function findSplitParameter(com1, com2) {
+export function simplifyPathDataCubic(pathData, {
+    keepExtremes = true,
+    keepInflections = true,
+    keepCorners = true,
+    extrapolateDominant = true,
+    tolerance = 1,
+} = {}) {
 
-    let chordLength1 = getDistance(com1.p0, com1.p);
-    let totalChord = getDistance(com1.p0, com2.p);
+    let pathDataN = [pathData[0]];
+    let l = pathData.length;
 
-    let t = chordLength1 / totalChord;
+    for (let i = 2; l && i <= l; i++) {
+        let com = pathData[i - 1];
+        let comN = i < l ? pathData[i] : null;
+        let typeN = comN?.type || null;
+        //let isCornerN = comN?.corner || null;
+        //let isExtremeN = comN?.extreme || null;
+        let isDirChange = com?.directionChange || null;
+        let isDirChangeN = comN?.directionChange || null;
 
-    return refineParameter(com1, com2, t);
+        let { type, values, p0, p, cp1 = null, cp2 = null, extreme = false, corner = false, dimA = 0 } = com;
 
-    return t
-}
 
-function refineParameter(com1, com2, tEstimate, maxIterations = 10) {
-    let t = tEstimate;
+        // next is also cubic
+        if (type === 'C' && typeN === 'C') {
 
-    for (let i = 0; i < maxIterations; i++) {
-        // Calculate error based on Q2 and R1 relationships
-        const P0 = com1.p0;
-        const P3 = com2.p;
+            // cannot be combined as crossing extremes or corners
+            if (
+                (keepInflections && isDirChangeN) ||
+                (keepCorners && corner) ||
+                (!isDirChange && keepExtremes && extreme)
+            ) {
+                //renderPoint(markers, p, 'red', '1%')
+                pathDataN.push(com)
+            }
 
-        // Reconstruct P1 and P2 at current t
-        const P1 = {
-            x: (com1.cp1.x - (1 - t) * P0.x) / t,
-            y: (com1.cp1.y - (1 - t) * P0.y) / t
-        };
+            // try simplification
+            else {
+                //renderPoint(markers, p, 'magenta', '1%')
+                let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance)
+                let error = 0;
 
-        const P2 = {
-            x: (com2.cp2.x - t * P3.x) / (1 - t),
-            y: (com2.cp2.y - t * P3.y) / (1 - t)
-        };
+                // combining successful! try next segment
+                if (combined.length === 1) {
+                    com = combined[0]
+                    let offset = 1;
 
-        // Calculate what Q2 and R1 should be
-        const Q1 = interpolate(P0, P1, t);
-        const P1P2_mid = interpolate(P1, P2, t);
-        const Q2_calc = interpolate(Q1, P1P2_mid, t);
+                    // add cumulative error to prevent distortions
+                    error += com.error;
+                    //console.log('!error', error);
 
-        const P2P3_mid = interpolate(P2, P3, t);
-        const R1_calc = interpolate(P1P2_mid, P2P3_mid, t);
+                    // find next candidates
+                    //offset<2 &&
+                    for (let n = i + 1;  error < tolerance  && n < l; n++) {
+                        let comN = pathData[n]
+                        if (comN.type !== 'C' ||
+                            (
+                                (keepInflections && comN.directionChange) ||
+                                (keepCorners && com.corner) ||
+                                (keepExtremes && com.extreme)
+                            )
+                        ) {
+                            break
+                        }
 
-        // Calculate errors
-        const errorQ2 = getDistance(Q2_calc, com1.cp2);
-        const errorR1 = getDistance(R1_calc, com2.cp1);
-        const totalError = errorQ2 + errorR1;
+                        let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance)
+                        if (combined.length === 1) {
+                            // add cumulative error to prevent distortions
+                            //console.log('combined', combined);
+                            error += combined[0].error * 0.5;
+                            //error += combined[0].error * 1;
+                            offset++
+                        }
+                        com = combined[0]
+                    }
 
-        if (totalError < 1e-9) {
-            break;
+                    //com.opt = true
+                    pathDataN.push(com)
+
+                    if (i < l) {
+                        i += offset
+                    }
+
+                } else {
+                    pathDataN.push(com)
+                }
+            }
+
+        } // end of bezier command
+
+
+        // other commands
+        else {
+            pathDataN.push(com)
         }
 
-        // Simple adjustment - in practice you'd use proper Newton step
-        t = t * 0.5 + 0.5 * (errorQ2 < errorR1 ? t + 0.01 : t - 0.01);
-        t = Math.max(0.001, Math.min(0.999, t));
-    }
+    } // end command loop
 
-    return t;
+    return pathDataN
 }
+
 
 
 
@@ -72,11 +118,12 @@ export function combineCubicPairs(com1, com2, extrapolateDominant = false, toler
 
     let distAv1 = getDistAv(com1.p0, com1.p);
     let distAv2 = getDistAv(com2.p0, com2.p);
-    let distMin = Math.min(distAv1, distAv2)
+    let distMin = Math.max(0,Math.min(distAv1, distAv2))
     //let distMax = Math.max(distAv1, distAv2)
 
-    let distScale = 0.05
-    let maxDist = distMin * distScale * tolerance
+    //let distScale = 0.05
+    let distScale = 0.06
+    let maxDist = distMin * distScale * tolerance 
     //tolerance = distMax * threshold
 
     let comS = getExtrapolatedCommand(com1, com2, t, t)
@@ -164,22 +211,22 @@ export function combineCubicPairs(com1, com2, extrapolateDominant = false, toler
     // try extrapolated dominant curve
     //&& !com2.extreme
     //  && !com1.extreme
+
+    /*
     if (extrapolateDominant && !success  ) {
 
-        let combinedEx = getCombinedByDominant(com1, com2, maxDist, tolerance);
-
+        let combinedEx = getCombinedByDominant(com1, com2, maxDist, tolerance*0.25);
         //console.log('???combinedEx', combinedEx);
 
         if(combinedEx.length===1){
             success = true
             comS = combinedEx[0]
             error = comS.error
-
             //console.log('!!!combinedEx', combinedEx);
         }
-
-    
     }
+    */
+
 
     // add meta
     if (success) {
@@ -271,7 +318,7 @@ export function getBezierCommandArea(commands = [com1, com2], absolute = true) {
 }
 
 
-function findSplitT(com1, com2) {
+export function findSplitT(com1, com2) {
 
     let len3 = getDistance(com1.cp2, com1.p)
     let len4 = getDistance(com1.cp2, com2.cp1)

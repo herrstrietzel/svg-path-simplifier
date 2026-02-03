@@ -774,27 +774,23 @@ function getDistAv(pt1, pt2) {
  * split compound paths into 
  * sub path data array
  */
+
 function splitSubpaths(pathData) {
-
     let subPathArr = [];
+    let current = [pathData[0]];
+    let l = pathData.length;
 
-    
-    try{
-        let subPathIndices = pathData.map((com, i) => (com.type.toLowerCase() === 'm' ? i : -1)).filter(i => i !== -1);
+    for (let i = 1; i < l; i++) {
+        let com = pathData[i];
 
-    }catch{
-        console.log('catch', pathData);
+        if (com.type === 'M' || com.type === 'm') {
+            subPathArr.push(current);
+            current = [];
+        }
+        current.push(com);
     }
 
-    let subPathIndices = pathData.map((com, i) => (com.type.toLowerCase() === 'm' ? i : -1)).filter(i => i !== -1);
-
-    // no compound path
-    if (subPathIndices.length === 1) {
-        return [pathData]
-    }
-    subPathIndices.forEach((index, i) => {
-        subPathArr.push(pathData.slice(index, subPathIndices[i + 1]));
-    });
+    if (current.length) subPathArr.push(current);
 
     return subPathArr;
 }
@@ -1478,13 +1474,6 @@ function pathDataToD(pathData, optimize = 0) {
     let beautify = optimize > 1;
     let minify = beautify || optimize ? false : true;
 
-    // Convert first "M" to "m" if followed by "l" (when minified)
-    /*
-    if (pathData[1].type === "l" && minify) {
-        pathData[0].type = "m";
-    }
-    */
-
     let d = '';
     let separator_command = beautify ? `\n` : (minify ? '' : ' ');
     let separator_type =  !minify ? ' ' : '';
@@ -1506,13 +1495,11 @@ function pathDataToD(pathData, optimize = 0) {
         }
 
         // Omit type for repeated commands
-        type = (com0.type === com.type && com.type.toLowerCase() !== 'm' && minify)
+        type = (minify && com0.type === com.type && com.type.toLowerCase() !== 'm' )
             ? " "
-            : (
-                (com0.type === "M" && com.type === "L")
-            ) && minify
+            : (minify && com0.type === "M" && com.type === "L"
                 ? " "
-                : com.type;
+                : com.type);
 
         // concatenate subsequent floating point values
         if (minify) {
@@ -1662,6 +1649,7 @@ function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, debug = f
         cp1: Q1,
         cp2: Q2,
         p: Q3,
+        t0
     };
 
     if (reverse) {
@@ -1670,6 +1658,7 @@ function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, debug = f
             cp1: Q2,
             cp2: Q1,
             p: Q0,
+            t0
         };
     }
 
@@ -1681,8 +1670,8 @@ function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, debug = f
     let ptI_1 = checkLineIntersection(ptM, seg1_cp2, result.p0, ptI, false);
     let ptI_2 = checkLineIntersection(ptM, seg1_cp2, result.p, ptI, false);
 
-    let cp1_2 = interpolate(result.p0, ptI_1, 1.333);
-    let cp2_2 = interpolate(result.p, ptI_2, 1.333);
+    let cp1_2 = interpolate(result.p0, ptI_1, 1.333  );
+    let cp2_2 = interpolate(result.p, ptI_2, 1.333  );
 
     // test self intersections and exit 
     let cp_intersection = checkLineIntersection(com1_o.p0, cp1_2, com2_o.p, cp2_2, true);
@@ -1714,14 +1703,24 @@ function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, debug = f
     // extrapolated starting point is not completely off
     if (dist5 < maxDist) {
 
+        /*
+        let tTotal = 1 + Math.abs(t0);
+        let tSplit = reverse ? 1 + t0 : Math.abs(t0);
+
+        let pO = pointAtT([com2_o.p0, com2_o.cp1, com2_o.cp2, com2_o.p], t0);
+*/
+
         // split t to meet original mid segment start point
         let tSplit = reverse ? 1 + t0 : Math.abs(t0);
+
+        let tTotal = 1 + Math.abs(t0);
+        tSplit = reverse ? 1 + t0 : Math.abs(t0) / tTotal;
 
         let ptSplit = pointAtT([result.p0, result.cp1, result.cp2, result.p], tSplit);
         let distSplit = getDistAv(ptSplit, com1.p);
 
         // not close enough - exit
-        if (distSplit > maxDist * tolerance) {
+        if (distSplit > maxDist * tolerance ) {
 
             return commands;
         }
@@ -1760,6 +1759,102 @@ function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, debug = f
 
 }
 
+function simplifyPathDataCubic(pathData, {
+    keepExtremes = true,
+    keepInflections = true,
+    keepCorners = true,
+    extrapolateDominant = true,
+    tolerance = 1,
+} = {}) {
+
+    let pathDataN = [pathData[0]];
+    let l = pathData.length;
+
+    for (let i = 2; l && i <= l; i++) {
+        let com = pathData[i - 1];
+        let comN = i < l ? pathData[i] : null;
+        let typeN = comN?.type || null;
+
+        let isDirChange = com?.directionChange || null;
+        let isDirChangeN = comN?.directionChange || null;
+
+        let { type, values, p0, p, cp1 = null, cp2 = null, extreme = false, corner = false, dimA = 0 } = com;
+
+        // next is also cubic
+        if (type === 'C' && typeN === 'C') {
+
+            // cannot be combined as crossing extremes or corners
+            if (
+                (keepInflections && isDirChangeN) ||
+                (keepCorners && corner) ||
+                (!isDirChange && keepExtremes && extreme)
+            ) {
+
+                pathDataN.push(com);
+            }
+
+            // try simplification
+            else {
+
+                let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance);
+                let error = 0;
+
+                // combining successful! try next segment
+                if (combined.length === 1) {
+                    com = combined[0];
+                    let offset = 1;
+
+                    // add cumulative error to prevent distortions
+                    error += com.error;
+
+                    // find next candidates
+
+                    for (let n = i + 1;  error < tolerance  && n < l; n++) {
+                        let comN = pathData[n];
+                        if (comN.type !== 'C' ||
+                            (
+                                (keepInflections && comN.directionChange) ||
+                                (keepCorners && com.corner) ||
+                                (keepExtremes && com.extreme)
+                            )
+                        ) {
+                            break
+                        }
+
+                        let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance);
+                        if (combined.length === 1) {
+                            // add cumulative error to prevent distortions
+
+                            error += combined[0].error * 0.5;
+
+                            offset++;
+                        }
+                        com = combined[0];
+                    }
+
+                    pathDataN.push(com);
+
+                    if (i < l) {
+                        i += offset;
+                    }
+
+                } else {
+                    pathDataN.push(com);
+                }
+            }
+
+        } // end of bezier command
+
+        // other commands
+        else {
+            pathDataN.push(com);
+        }
+
+    } // end command loop
+
+    return pathDataN
+}
+
 function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 1) {
 
     let commands = [com1, com2];
@@ -1767,10 +1862,10 @@ function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 
 
     let distAv1 = getDistAv(com1.p0, com1.p);
     let distAv2 = getDistAv(com2.p0, com2.p);
-    let distMin = Math.min(distAv1, distAv2);
+    let distMin = Math.max(0,Math.min(distAv1, distAv2));
 
-    let distScale = 0.05;
-    let maxDist = distMin * distScale * tolerance;
+    let distScale = 0.06;
+    let maxDist = distMin * distScale * tolerance; 
 
     let comS = getExtrapolatedCommand(com1, com2, t, t);
 
@@ -1841,19 +1936,20 @@ function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 
     // try extrapolated dominant curve
 
     //  && !com1.extreme
+
+    /*
     if (extrapolateDominant && !success  ) {
 
-        let combinedEx = getCombinedByDominant(com1, com2, maxDist, tolerance);
+        let combinedEx = getCombinedByDominant(com1, com2, maxDist, tolerance*0.25);
 
         if(combinedEx.length===1){
-            success = true;
-            comS = combinedEx[0];
-            error = comS.error;
+            success = true
+            comS = combinedEx[0]
+            error = comS.error
 
         }
-
-    
     }
+    */
 
     // add meta
     if (success) {
@@ -1913,52 +2009,39 @@ function findSplitT(com1, com2) {
     return t
 }
 
-function checkBezierFlatness(p0, cpts, p) {
+function commandIsFlat(points, {
+    tolerance = 1,
+    debug=false
+} = {}) {
 
-    let isFlat = false;
+    let isFlat=false;
+    let report = {
+        flat:true,
+        steepness:0
+    };
 
-    let isCubic = cpts.length === 2;
+    let p0 = points[0];
+    let p = points[points.length - 1];
 
-    let cp1 = cpts[0];
-    let cp2 = isCubic ? cpts[1] : cp1;
+    let xSet = new Set([...points.map(pt => +pt.x.toFixed(8))]);
+    let ySet = new Set([...points.map(pt => +pt.y.toFixed(8))]);
 
-    if (p0.x === cp1.x && p0.y === cp1.y && p.x === cp2.x && p.y === cp2.y) return true;
+    // must be flat
+    if(xSet.size===1 || ySet.size===1) return !debug ? true : report;
 
-    let dx1 = cp1.x - p0.x;
-    let dy1 = cp1.y - p0.y;
+    let squareDist = getSquareDistance(p0, p);
+    let threshold = squareDist / 1000 * tolerance;
+    let area = getPolygonArea(points, true);
 
-    let dx2 = p.x - cp2.x;
-    let dy2 = p.y - cp2.y;
+    // flat enough
+    if(area < threshold) isFlat = true;
 
-    let cross1 = Math.abs(dx1 * dy2 - dy1 * dx2);
-
-    if (!cross1) return true
-
-    let dx0 = p.x - p0.x;
-    let dy0 = p.y - p0.y;
-    let cross0 = Math.abs(dx0 * dy1 - dy0 * dx1);
-
-    if (!cross0) return true
-
-    let area = getPolygonArea([p0,...cpts, p], true);
-    let dist1 = getSquareDistance(p0, p);
-    let thresh = dist1/200;
-
-   // if(area<thresh) return true;
-    isFlat = area<thresh;
-
-    /*
-
-    let rat = (cross0 / cross1)
-
-    if (rat < 1.1) {
-        console.log('cross', cross0, cross1, 'rat', rat );
-        isFlat = true;
+    if(debug){
+        report.flat = isFlat;
+        report.steepness = area/threshold;
     }
-    */
 
-    return isFlat;
-
+    return !debug ? isFlat : report;
 }
 
 function analyzePathData(pathData = []) {
@@ -2074,14 +2157,17 @@ function analyzePathData(pathData = []) {
             commandPts.push(p);
 
             /*
+
             let commandFlatness = commandIsFlat(commandPts);
             isFlat = commandFlatness.flat;
             com.flat = isFlat;
 
             if (isFlat) {
                 com.extreme = false;
+
             }
             */
+
         }
 
         /**
@@ -2191,7 +2277,7 @@ function detectAccuracy(pathData) {
     let p = M;
     pathData[0].decimals = 0;
 
-    let dims = new Set();
+    let dims = [];
 
     // add average distances
     for (let i = 0, len = pathData.length; i < len; i++) {
@@ -2204,7 +2290,7 @@ function detectAccuracy(pathData) {
         // use existing averave dimension value or calculate
         let dimA = com.dimA ? +com.dimA.toFixed(8) : type !== 'M' ? +getDistAv(p0, p).toFixed(8) : 0;
 
-        if (dimA) dims.add(dimA);
+        if (dimA) dims.push(dimA);
 
         if (type === 'M') {
             M = p;
@@ -2212,7 +2298,7 @@ function detectAccuracy(pathData) {
         p0 = p;
     }
 
-    let dim_min = Array.from(dims).sort();
+    let dim_min = dims.sort();
 
     /*
     let minVal = dim_min.length > 15 ?
@@ -2238,19 +2324,24 @@ function detectAccuracy(pathData) {
  * based on suggested accuracy in path data
  */
 function roundPathData(pathData, decimals = -1) {
-    // has recommended decimals
-    let hasDecimal = decimals == 'auto' && pathData[0].hasOwnProperty('decimals') ? true : false;
 
-    for (let c = 0, len = pathData.length; c < len; c++) {
-        let com = pathData[c];
+    let len = pathData.length;
 
-        if (decimals > -1 || hasDecimal) {
-            decimals = hasDecimal ? com.decimals : decimals;
+    for (let c = 0; c < len; c++) {
 
-            pathData[c].values = com.values.map(val => { return val ? +val.toFixed(decimals) : val });
+        let values = pathData[c].values;
+        let valLen = values.length;
 
+        if (valLen && (decimals > -1) ) {
+
+            for(let v=0; v<valLen; v++){
+
+                pathData[c].values[v] =  +values[v].toFixed(decimals);
+            }
         }
-    }    return pathData;
+    }
+
+    return pathData;
 }
 
 function revertCubicQuadratic(p0 = {}, cp1 = {}, cp2 = {}, p = {}) {
@@ -2293,9 +2384,10 @@ function convertPathData(pathData, {
     if (toShorthands) pathData = pathDataToShorthands(pathData);
 
     // pre round - before relative conversion to minimize distortions
-    pathData = roundPathData(pathData, decimals);
+    if(decimals>-1 && toRelative) pathData = roundPathData(pathData, decimals);
     if (toRelative) pathData = pathDataToRelative(pathData);
     if (decimals > -1) pathData = roundPathData(pathData, decimals);
+
     return pathData
 }
 
@@ -2597,7 +2689,7 @@ function pathDataToLonghands(pathData, decimals = -1, test = true) {
  * L, L, C, Q => H, V, S, T
  * reversed method: pathDataToLonghands()
  */
-function pathDataToShorthands(pathData, decimals = -1, test = true) {
+function pathDataToShorthands(pathData, decimals = -1, test = false) {
 
     /** 
     * analyze pathdata – if you're sure your data is already absolute skip it via test=false
@@ -2608,29 +2700,28 @@ function pathDataToShorthands(pathData, decimals = -1, test = true) {
         hasRel = /[astvqmhlc]/g.test(commandTokens);
     }
 
-    pathData = test && hasRel ? pathDataToAbsolute(pathData, decimals) : pathData;
+    pathData = test && hasRel ? pathDataToAbsoluteOrRelative(pathData) : pathData;
+
+    let len = pathData.length;
+    let pathDataShorts = new Array(len);
 
     let comShort = {
         type: "M",
         values: pathData[0].values
     };
 
-    if (pathData[0].decimals) {
-
-        comShort.decimals = pathData[0].decimals;
-    }
-
-    let pathDataShorts = [comShort];
+    pathDataShorts[0] = comShort;
 
     let p0 = { x: pathData[0].values[0], y: pathData[0].values[1] };
     let p;
     let tolerance = 0.01;
 
-    for (let i = 1, len = pathData.length; i < len; i++) {
+    for (let i = 1; i < len; i++) {
 
         let com = pathData[i];
         let { type, values } = com;
-        let valuesLast = values.slice(-2);
+        let valuesLen = values.length;
+        let valuesLast = [values[valuesLen-2], values[valuesLen-1]];
 
         // previoius command
         let comPrev = pathData[i - 1];
@@ -2678,7 +2769,8 @@ function pathDataToShorthands(pathData, decimals = -1, test = true) {
                 if (typePrev !== 'Q') {
 
                     p0 = { x: valuesLast[0], y: valuesLast[1] };
-                    pathDataShorts.push(com);
+
+                    pathDataShorts[i] = com;
                     continue;
                 }
 
@@ -2707,7 +2799,8 @@ function pathDataToShorthands(pathData, decimals = -1, test = true) {
 
                 if (typePrev !== 'C') {
 
-                    pathDataShorts.push(com);
+                    pathDataShorts[i] = com;
+
                     p0 = { x: valuesLast[0], y: valuesLast[1] };
                     continue;
                 }
@@ -2749,8 +2842,10 @@ function pathDataToShorthands(pathData, decimals = -1, test = true) {
         }
 
         p0 = { x: valuesLast[0], y: valuesLast[1] };
-        pathDataShorts.push(comShort);
+        pathDataShorts[i] = comShort;
+
     }
+
     return pathDataShorts;
 }
 
@@ -3250,10 +3345,12 @@ function parsePathDataNormalized(d,
 ) {
 
     let pathDataObj = parsePathDataString(d);
+
     let { hasRelatives, hasShorthands, hasQuadratics, hasArcs } = pathDataObj;
     let pathData = pathDataObj.pathData;
 
     // normalize
+
     pathData = normalizePathData(pathData,
         { toAbsolute, toLonghands, quadraticToCubic, arcToCubic, arcAccuracy },
 
@@ -3641,22 +3738,22 @@ function stringifyPathData(pathData) {
     return pathData.map(com => { return `${com.type} ${com.values.join(' ')}` }).join(' ');
 }
 
-function shapeElToPath(el){
+function shapeElToPath(el) {
 
     let nodeName = el.nodeName.toLowerCase();
-    if(nodeName==='path')return el;
+    if (nodeName === 'path') return el;
 
     let pathData = getPathDataFromEl(el);
-    let d = pathData.map(com=>{return `${com.type} ${com.values} `}).join(' ');
-    let attributes = [...el.attributes].map(att=>att.name);
+    let d = pathData.map(com => { return `${com.type} ${com.values} ` }).join(' ');
+    let attributes = [...el.attributes].map(att => att.name);
 
     let pathN = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    pathN.setAttribute('d', d );
+    pathN.setAttribute('d', d);
 
     let exclude = ['x', 'y', 'cx', 'cy', 'dx', 'dy', 'r', 'rx', 'ry', 'width', 'height', 'points'];
 
-    attributes.forEach(att=>{
-        if(!exclude.includes(att)){
+    attributes.forEach(att => {
+        if (!exclude.includes(att)) {
             let val = el.getAttribute(att);
             pathN.setAttribute(att, val);
         }
@@ -3667,7 +3764,7 @@ function shapeElToPath(el){
 }
 
 // retrieve pathdata from svg geometry elements
-function getPathDataFromEl(el, stringify=false) {
+function getPathDataFromEl(el, stringify = false) {
 
     let pathData = [];
     let type = el.nodeName;
@@ -3825,7 +3922,9 @@ function getPathDataFromEl(el, stringify=false) {
             attNames = ['cx', 'cy', 'rx', 'ry', 'r'];
             ({ cx, cy, r, rx, ry } = getAtts(attNames));
 
-            if (type === 'circle') {
+            let isCircle = type === 'circle';
+
+            if (isCircle) {
                 r = r;
                 rx = r;
                 ry = r;
@@ -3834,10 +3933,14 @@ function getPathDataFromEl(el, stringify=false) {
                 ry = ry ? ry : r;
             }
 
+            // simplified radii for cirecles
+            let rxS = isCircle && r>=1 ? 1 : rx;
+            let ryS = isCircle && r>=1 ? 1 : rx;
+
             pathData = [
                 { type: "M", values: [cx + rx, cy] },
-                { type: "A", values: [rx, ry, 0, 1, 1, cx - rx, cy] },
-                { type: "A", values: [rx, ry, 0, 1, 1, cx + rx, cy] },
+                { type: "A", values: [rxS, ryS, 0, 1, 1, cx - rx, cy] },
+                { type: "A", values: [rxS, ryS, 0, 1, 1, cx + rx, cy] },
             ];
 
             break;
@@ -3869,20 +3972,25 @@ function getPathDataFromEl(el, stringify=false) {
             break;
     }
 
-    return stringify ? stringifyPathData(pathData): pathData;
+    return stringify ? stringifyPathData(pathData) : pathData;
 
 }
 
-function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = true) {
+function pathDataRemoveColinear(pathData, {
+    tolerance = 1, 
+
+    flatBezierToLinetos = true
+}={}) {
 
     let pathDataN = [pathData[0]];
+
     let M = { x: pathData[0].values[0], y: pathData[0].values[1] };
     let p0 = M;
     let p = M;
     pathData[pathData.length - 1].type.toLowerCase() === 'z';
 
     for (let c = 1, l = pathData.length; c < l; c++) {
-        let comPrev = pathData[c - 1];
+
         let com = pathData[c];
         let comN = pathData[c + 1] || pathData[l - 1];
         let p1 = comN.type.toLowerCase() === 'z' ? M : { x: comN.values[comN.values.length - 2], y: comN.values[comN.values.length - 1] };
@@ -3893,11 +4001,9 @@ function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = t
 
         let area = getPolygonArea([p0, p, p1], true);
 
-        getSquareDistance(p0, p);
-        getSquareDistance(p, p1);
         let distSquare = getSquareDistance(p0, p1);
 
-        let distMax = distSquare / 200 * tolerance;
+        let distMax = distSquare / 1000 * tolerance;
 
         let isFlat = area < distMax;
         let isFlatBez = false;
@@ -3911,17 +4017,14 @@ function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = t
             [{ x: values[0], y: values[1] }, { x: values[2], y: values[3] }] :
             (type === 'Q' ? [{ x: values[0], y: values[1] }] : []);
 
-            isFlatBez = checkBezierFlatness(p0, cpts, p);
+            isFlatBez = commandIsFlat([p0, ...cpts, p],{tolerance});
 
-           // console.log();
-
-            if (isFlatBez  && c < l - 1 && comPrev.type !== 'C') {
+            if (isFlatBez  && c < l - 1  ) {
                 type = "L";
                 com.type = "L";
                 com.values = valsL;
 
             }
-
         }
 
         // update end point
@@ -3930,8 +4033,6 @@ function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = t
         // colinear – exclude arcs (as always =) as semicircles won't have an area
 
         if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) ) {
-
-            
 
             continue;
         }
@@ -4238,125 +4339,6 @@ function addClosePathLineto(pathData) {
     return pathData;
 }
 
-/**
- * reverse pathdata
- * make sure all command coordinates are absolute and
- * shorthands are converted to long notation
- */
-function reversePathData(pathData, {
-    arcToCubic = false,
-    quadraticToCubic = false,
-    toClockwise = false,
-    returnD = false
-} = {}) {
-
-    /**
-     * Add closing lineto:
-     * needed for path reversing or adding points
-     */
-    const addClosePathLineto = (pathData) => {
-        let closed = pathData[pathData.length - 1].type.toLowerCase() === "z";
-        let M = pathData[0];
-        let [x0, y0] = [M.values[0], M.values[1]];
-        let lastCom = closed ? pathData[pathData.length - 2] : pathData[pathData.length - 1];
-        let [xE, yE] = [lastCom.values[lastCom.values.length - 2], lastCom.values[lastCom.values.length - 1]];
-
-        if (closed && (x0 != xE || y0 != yE)) {
-
-            pathData.pop();
-            pathData.push(
-                {
-                    type: "L",
-                    values: [x0, y0]
-                },
-                {
-                    type: "Z",
-                    values: []
-                }
-            );
-        }
-        return pathData;
-    };
-
-    // helper to rearrange control points for all command types
-    const reverseControlPoints = (type, values) => {
-        let controlPoints = [];
-        let endPoints = [];
-        if (type !== "A") {
-            for (let p = 0; p < values.length; p += 2) {
-                controlPoints.push([values[p], values[p + 1]]);
-            }
-            endPoints = controlPoints.pop();
-            controlPoints.reverse();
-        }
-        // is arc
-        else {
-
-            let sweep = values[4] == 0 ? 1 : 0;
-            controlPoints = [values[0], values[1], values[2], values[3], sweep];
-            endPoints = [values[5], values[6]];
-        }
-        return { controlPoints, endPoints };
-    };
-
-    // start compiling new path data
-    let pathDataNew = [];
-
-    let closed =
-        pathData[pathData.length - 1].type.toLowerCase() === "z" ? true : false;
-    if (closed) {
-        // add lineto closing space between Z and M
-        pathData = addClosePathLineto(pathData);
-        // remove Z closepath
-        pathData.pop();
-    }
-
-    // define last point as new M if path isn't closed
-    let valuesLast = pathData[pathData.length - 1].values;
-    let valuesLastL = valuesLast.length;
-    let M = closed
-        ? pathData[0]
-        : {
-            type: "M",
-            values: [valuesLast[valuesLastL - 2], valuesLast[valuesLastL - 1]]
-        };
-    // starting M stays the same – unless the path is not closed
-    pathDataNew.push(M);
-
-    // reverse path data command order for processing
-    pathData.reverse();
-    for (let i = 1; i < pathData.length; i++) {
-        let com = pathData[i];
-        let type = com.type;
-        let values = com.values;
-        let comPrev = pathData[i - 1];
-        let typePrev = comPrev.type;
-        let valuesPrev = comPrev.values;
-
-        // get reversed control points and new end coordinates
-        let controlPointsPrev = reverseControlPoints(typePrev, valuesPrev).controlPoints;
-        let endPoints = reverseControlPoints(type, values).endPoints;
-
-        // create new path data
-        let newValues = [];
-        newValues = [controlPointsPrev, endPoints].flat();
-        pathDataNew.push({
-            type: typePrev,
-            values: newValues.flat()
-        });
-    }
-
-    // add previously removed Z close path
-    if (closed) {
-        pathDataNew.push({
-            type: "z",
-            values: []
-        });
-    }
-
-    return pathDataNew;
-}
-
 function refineAdjacentExtremes(pathData, {
     threshold = null, tolerance = 1
 } = {}) {
@@ -4371,16 +4353,87 @@ function refineAdjacentExtremes(pathData, {
 
     for (let i = 0; i < l; i++) {
         let com = pathData[i];
-        let { type, values, extreme, corner=false, dimA, p0, p } = com;
+        let { type, values, extreme, corner = false, dimA, p0, p } = com;
         let comN = pathData[i + 1] ? pathData[i + 1] : null;
+        let comN2 = pathData[i + 2] ? pathData[i + 2] : null;
+
+        // check dist
+        let diff = comN ? getDistAv(p, comN.p) : Infinity;
+        let isCose = diff < threshold;
+
+        let diff2 = comN2 ? getDistAv(comN2.p, comN.p) : Infinity;
+        let isCose2 = diff2 < threshold;
+
+        if (comN && type === 'C' && comN.type === 'C' && extreme && comN2 && comN2.extreme) {
+
+            if (isCose2 || isCose) {
+
+                /*
+
+                renderPoint(markers, comN.p, 'cyan', '1%', '0.5')
+                renderPoint(markers, comN2.p, 'magenta', '1%', '0.5')
+
+                let coms = [comN, comN2]
+                let t0 = findSplitT(...coms);
+                let comS = getExtrapolatedCommand(...coms, t0, t0)
+
+                let pathDataE = [
+                    {type: 'M', values: [comS.p0.x, comS.p0.y] },
+                    {type:'C', values:[comS.cp1.x, comS.cp1.y, comS.cp2.x, comS.cp2.y, comS.p.x, comS.p.y]}
+                ]
+
+                let d0 = pathDataToD(pathDataE)
+                renderPath(markers, d0)
+                */
+
+                // extrapolate
+                let comEx = getCombinedByDominant(comN, comN2, threshold, tolerance, false);
+
+                if (comEx.length === 1) {
+
+                    pathData[i + 1] = null;
+
+                    comEx = comEx[0];
+
+                    pathData[i + 2].values = [comEx.cp1.x, comEx.cp1.y, comEx.cp2.x, comEx.cp2.y, comEx.p.x, comEx.p.y];
+                    pathData[i + 2].cp1 = comEx.cp1;
+                    pathData[i + 2].cp2 = comEx.cp2;
+                    pathData[i + 2].p0 = comEx.p0;
+                    pathData[i + 2].p = comEx.p;
+                    pathData[i + 2].extreme = comEx.extreme;
+
+                    /*
+                    let tEx = comEx.t0
+                    let pathDataS = [
+                        {type: 'M', values: [comEx.p0.x, comEx.p0.y] },
+                        pathData[i + 2]
+                    ]
+
+                    let d2 = pathDataToD(pathDataS)
+
+                    // interpolate
+                    let tN = 1+tEx*0.5
+                    let pathDataI = interpolatedPathData(pathDataE, pathDataS, tN).pathData;
+
+                    console.log('pathDataI', pathDataI, t0, tEx, 'tN', tN);
+
+                    pathData[i + 2].values = pathDataI[1].values
+                    pathData[i + 2].cp1 = {x:pathDataI[1].values[0], y:pathDataI[1].values[1]}
+                    pathData[i + 2].cp2 = {x:pathDataI[1].values[2], y:pathDataI[1].values[3]}
+
+                    */
+
+                    i++;
+                    continue
+                }
+            }
+
+        }
 
         // adjacent 
 
-        if (comN && type === 'C' && comN.type === 'C' && extreme && !corner) {
-
-            // check dist
-            let diff = getDistAv(p, comN.p);
-            let isCose = diff < threshold;
+        // && !corner
+        if (comN && type === 'C' && comN.type === 'C' && extreme) {
 
             if (isCose) {
 
@@ -4423,35 +4476,12 @@ function refineAdjacentExtremes(pathData, {
 
                 }
 
-                // extend fist command
-                else {
-
-                    let comN2 = pathData[i + 2] ? pathData[i + 2] : null;
-                    if (!comN2 && comN2.type !== 'C') continue
-
-                    // extrapolate
-                    let comEx = getCombinedByDominant(comN, comN2, threshold, tolerance, false);
-
-                    if (comEx.length === 1) {
-                        pathData[i + 1] = null;
-
-                        comEx = comEx[0];
-
-                        pathData[i + 2].values = [comEx.cp1.x, comEx.cp1.y, comEx.cp2.x, comEx.cp2.y, comEx.p.x, comEx.p.y];
-                        pathData[i + 2].cp1 = comEx.cp1;
-                        pathData[i + 2].cp2 = comEx.cp2;
-                        pathData[i + 2].p0 = comEx.p0;
-                        pathData[i + 2].p = comEx.p;
-                        pathData[i + 2].extreme = comEx.extreme;
-
-                        i++;
-                        continue
-                    }
-
-                }
-
             }
         }
+
+        /*
+        */
+
     }
 
     // remove commands
@@ -4478,11 +4508,7 @@ function refineAdjacentExtremes(pathData, {
 
     if (penultimateCom && penultimateCom.type === 'C' && isCose && isClosingTo && fistExt) {
 
-        Math.abs(fistExt.cp1.x - M.x);
-        Math.abs(fistExt.cp1.y - M.y);
-
         let comEx = getCombinedByDominant(penultimateCom, lastCom, threshold, tolerance, false);
-        console.log('comEx', comEx);
 
         if (comEx.length === 1) {
             pathData[lastIdx - 1] = comEx[0];
@@ -4607,6 +4633,7 @@ function svgPathSimplify(input = '', {
 
     simplifyBezier = true,
     optimizeOrder = true,
+    removeZeroLength = true,
     removeColinear = true,
     flatBezierToLinetos = true,
     revertToQuadratics = true,
@@ -4656,9 +4683,10 @@ function svgPathSimplify(input = '', {
      */
 
     // original size
-    svgSize = new Blob([input]).size;
 
-    // single path
+    svgSize = input.length;
+
+    // mode:0 – single path
     if (!mode) {
         if (inputType === 'pathDataString') {
             d = input;
@@ -4667,7 +4695,7 @@ function svgPathSimplify(input = '', {
         }
         paths.push({ d, el: null });
     }
-    // process svg
+    // mode:1 – process complete svg DOM
     else {
 
         let returnDom = true;
@@ -4691,6 +4719,7 @@ function svgPathSimplify(input = '', {
 
     /**
      * process all paths
+     * try simplifications and removals
      */
 
     // SVG optimization options
@@ -4703,17 +4732,15 @@ function svgPathSimplify(input = '', {
     // combinded path data for SVGs with mergePaths enabled
     let pathData_merged = [];
 
-    paths.forEach(path => {
+    for(let i=0, l=paths.length; l&&i<l; i++ ){
+
+        let path = paths[i];
         let { d, el } = path;
 
-        let pathDataO = parsePathDataNormalized(d, { quadraticToCubic, toAbsolute, arcToCubic });
+        let pathData = parsePathDataNormalized(d, { quadraticToCubic, toAbsolute, arcToCubic });
 
         // count commands for evaluation
-        let comCount = pathDataO.length;
-
-        // create clone for fallback
-
-        let pathData = pathDataO;
+        let comCount = pathData.length;
 
         if(removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
 
@@ -4721,19 +4748,19 @@ function svgPathSimplify(input = '', {
          * get sub paths
          */
         let subPathArr = splitSubpaths(pathData);
+        let lenSub = subPathArr.length;
 
         // cleaned up pathData
-        let pathDataArrN = [];
 
-        for (let i = 0, l = subPathArr.length; i < l; i++) {
+        // reset array
+        let pathDataFlat = [];
+
+        for (let i = 0; i < lenSub; i++) {
 
             let pathDataSub = subPathArr[i];
 
-            // try simplification in reversed order
-            if (reverse) pathDataSub = reversePathData(pathDataSub);
-
             // remove zero length linetos
-            if (removeColinear) pathDataSub = removeZeroLengthLinetos(pathDataSub);
+            if (removeColinear || removeZeroLength) pathDataSub = removeZeroLengthLinetos(pathDataSub);
 
             // add extremes
 
@@ -4743,15 +4770,14 @@ function svgPathSimplify(input = '', {
             // sort to top left
             if (optimizeOrder) pathDataSub = pathDataToTopLeft(pathDataSub);
 
-            // remove colinear/flat
-            if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, tolerance, flatBezierToLinetos);
+            // Preprocessing: remove colinear - ignore flat beziers (removed later)
+            if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, {tolerance, flatBezierToLinetos:false});
 
             // analyze pathdata to add info about signicant properties such as extremes, corners
             let pathDataPlus = analyzePathData(pathDataSub);
 
             // simplify beziers
             let { pathData, bb, dimA } = pathDataPlus;
-
             pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
             // refine extremes
@@ -4763,7 +4789,7 @@ function svgPathSimplify(input = '', {
             // cubic to arcs
             if (cubicToArc) {
 
-                let thresh = 3;
+                let thresh = 1;
 
                 pathData.forEach((com, c) => {
                     let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
@@ -4788,11 +4814,6 @@ function svgPathSimplify(input = '', {
 
                         let comQ = revertCubicQuadratic(p0, cp1, cp2, p);
                         if (comQ.type === 'Q') {
-                            /*
-                            comQ.p0 = com.p0
-                            comQ.cp1 = {x:comQ.values[0], y:comQ.values[1]}
-                            comQ.p = com.p
-                            */
                             comQ.extreme = com.extreme;
                             comQ.corner = com.corner;
                             comQ.dimA = com.dimA;
@@ -4803,17 +4824,27 @@ function svgPathSimplify(input = '', {
                 });
             }
 
+            // post processing: remove flat beziers
+            if (removeColinear && flatBezierToLinetos) {
+                pathData = pathDataRemoveColinear(pathData, {tolerance, flatBezierToLinetos});
+            }
+
             // optimize close path
             if (optimizeOrder) pathData = optimizeClosePath(pathData);
 
-            // poly
-
             // update
-            pathDataArrN.push(pathData);
+            pathDataFlat.push(...pathData);
+
         }
 
         // flatten compound paths 
-        pathData = pathDataArrN.flat();
+        pathData = pathDataFlat;
+
+        if (autoAccuracy) {
+            decimals = detectAccuracy(pathData);
+            pathOptions.decimals = decimals;
+
+        }
 
         // collect for merged svg paths 
         if (el && mergePaths) {
@@ -4822,26 +4853,18 @@ function svgPathSimplify(input = '', {
         // single output
         else {
 
-            /**
-             * detect accuracy
-             */
-            if (autoAccuracy) {
-                decimals = detectAccuracy(pathData);
-                pathOptions.decimals = decimals;
-
-            }
-
             // optimize path data
             pathData = convertPathData(pathData, pathOptions);
 
             // remove zero-length segments introduced by rounding
-            pathData = removeZeroLengthLinetos(pathData);
 
             // compare command count
             let comCountS = pathData.length;
 
             let dOpt = pathDataToD(pathData, minifyD);
-            svgSizeOpt = new Blob([dOpt]).size;
+
+            svgSizeOpt = dOpt.length;
+
             compression = +(100 / svgSize * (svgSizeOpt)).toFixed(2);
 
             path.d = dOpt;
@@ -4857,14 +4880,14 @@ function svgPathSimplify(input = '', {
             // apply new path for svgs
             if (el) el.setAttribute('d', dOpt);
         }
-    });
-
+    }
     /**
      *  stringify new SVG
      */
     if (mode) {
 
         if (pathData_merged.length) {
+
             // optimize path data
             let pathData = convertPathData(pathData_merged, pathOptions);
 
@@ -4888,7 +4911,8 @@ function svgPathSimplify(input = '', {
         }
 
         svg = stringifySVG(svg);
-        svgSizeOpt = new Blob([svg]).size;
+
+        svgSizeOpt = svg.length;
 
         compression = +(100 / svgSize * (svgSizeOpt)).toFixed(2);
 
@@ -4907,104 +4931,6 @@ function svgPathSimplify(input = '', {
 
     return !getObject ? (d ? d : svg) : { svg, d, report, inputType, mode };
 
-}
-
-function simplifyPathDataCubic(pathData, {
-    keepExtremes = true,
-    keepInflections = true,
-    keepCorners = true,
-    extrapolateDominant = true,
-    tolerance = 1,
-    reverse = false
-} = {}) {
-
-    let pathDataN = [pathData[0]];
-
-    for (let i = 2, l = pathData.length; l && i <= l; i++) {
-        let com = pathData[i - 1];
-        let comN = i < l ? pathData[i] : null;
-        let typeN = comN?.type || null;
-
-        let isDirChange = com?.directionChange || null;
-        let isDirChangeN = comN?.directionChange || null;
-
-        let { type, values, p0, p, cp1 = null, cp2 = null, extreme = false, corner = false, dimA = 0 } = com;
-
-        // next is also cubic
-        if (type === 'C' && typeN === 'C') {
-
-            // cannot be combined as crossing extremes or corners
-            if (
-                (keepInflections && isDirChangeN) ||
-                (keepCorners && corner) ||
-                (!isDirChange && keepExtremes && extreme)
-            ) {
-
-                pathDataN.push(com);
-            }
-
-            // try simplification
-            else {
-
-                let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance);
-                let error = 0;
-
-                // combining successful! try next segment
-                if (combined.length === 1) {
-                    com = combined[0];
-                    let offset = 1;
-
-                    // add cumulative error to prevent distortions
-                    error += com.error;
-
-                    // find next candidates
-                    for (let n = i + 1; error < tolerance && n < l; n++) {
-                        let comN = pathData[n];
-                        if (comN.type !== 'C' ||
-                            (
-                                (keepInflections && comN.directionChange) ||
-                                (keepCorners && com.corner) ||
-                                (keepExtremes && com.extreme)
-                            )
-                        ) {
-                            break
-                        }
-
-                        let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance);
-                        if (combined.length === 1) {
-                            // add cumulative error to prevent distortions
-
-                            error += combined[0].error * 0.5;
-
-                            offset++;
-                        }
-                        com = combined[0];
-                    }
-
-                    pathDataN.push(com);
-
-                    if (i < l) {
-                        i += offset;
-                    }
-
-                } else {
-                    pathDataN.push(com);
-                }
-            }
-
-        } // end of bezier command
-
-        // other commands
-        else {
-            pathDataN.push(com);
-        }
-
-    } // end command loop
-
-    // reverse back
-    if (reverse) pathDataN = reversePathData(pathDataN);
-
-    return pathDataN
 }
 
 const {

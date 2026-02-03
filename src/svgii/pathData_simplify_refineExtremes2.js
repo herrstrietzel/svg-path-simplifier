@@ -15,24 +15,68 @@ export function refineAdjacentExtremes(pathData, {
         //console.log('new threshold', threshold);
     }
 
+    //let bb = getPathDataBBox(pathData);
+    //threshold = (bb.width + bb.height) / 2 * 0.1
+
+
     let l = pathData.length
 
     for (let i = 0; i < l; i++) {
         let com = pathData[i];
-        let { type, values, extreme, corner=false, dimA, p0, p } = com;
+        let { type, values, extreme, corner = false, dimA, p0, p } = com;
         let comN = pathData[i + 1] ? pathData[i + 1] : null;
+        let comN2 = pathData[i + 2] ? pathData[i + 2] : null;
+
+
+        // check dist
+        let diff = comN ? getDistAv(p, comN.p) : Infinity;
+        let isCose = diff < threshold;
+
+        let diff2 = comN2 ? getDistAv(comN2.p, comN.p) : Infinity
+        let isCose2 = diff2 < threshold;
+
+
+        if (comN && type === 'C' && comN.type === 'C' && extreme && comN2 && comN2.extreme) {
+
+
+            if (isCose2 || isCose) {
+                //renderPoint(markers, com.p, 'green', '1%', '0.5')
+                //renderPoint(markers, comN.p, 'cyan', '1%', '0.5')
+                //renderPoint(markers, comN2.p, 'magenta', '1%', '0.5')
+
+                // extrapolate
+                let comEx = getCombinedByDominant(comN, comN2, threshold, tolerance, false)
+                //console.log('comEx', comEx);
+
+                if (comEx.length === 1) {
+                    pathData[i + 1] = null;
+
+                    comEx = comEx[0]
+
+                    pathData[i + 2].values = [comEx.cp1.x, comEx.cp1.y, comEx.cp2.x, comEx.cp2.y, comEx.p.x, comEx.p.y]
+                    pathData[i + 2].cp1 = comEx.cp1
+                    pathData[i + 2].cp2 = comEx.cp2
+                    pathData[i + 2].p0 = comEx.p0
+                    pathData[i + 2].p = comEx.p
+                    pathData[i + 2].extreme = comEx.extreme
+
+                    i++
+                    continue
+                }
+            }
+
+        }
 
 
         // adjacent 
-        //&& comN.extreme
-        if (comN && type === 'C' && comN.type === 'C' && extreme && !corner) {
-
-            // check dist
-            let diff = getDistAv(p, comN.p)
-            let isCose = diff < threshold;
-
+        //&& comN.extreme 
+        // && !corner
+        if (comN && type === 'C' && comN.type === 'C' && extreme) {
 
             if (isCose) {
+
+
+                //renderPoint(markers, com.p, 'cyan', '1%', '0.5')
                 //renderPoint(markers, comN.p, 'cyan', '1%', '0.5')
                 //console.log(comN);
                 //console.log(diff, threshold);
@@ -45,6 +89,8 @@ export function refineAdjacentExtremes(pathData, {
                 let pN = comN.p;
                 let ptI;
                 let t = 1;
+
+                //renderPoint(markers, comN.p, 'orange', '1%', '0.5')
 
                 if (comN.extreme) {
 
@@ -78,38 +124,14 @@ export function refineAdjacentExtremes(pathData, {
 
                 }
 
-                // extend fist command
-                else {
-
-                    let comN2 = pathData[i + 2] ? pathData[i + 2] : null;
-                    if (!comN2 && comN2.type !== 'C') continue
-
-                    //continue
-
-                    // extrapolate
-                    let comEx = getCombinedByDominant(comN, comN2, threshold, tolerance, false)
-                    //console.log('comEx', comEx);
-
-                    if (comEx.length === 1) {
-                        pathData[i + 1] = null;
-
-                        comEx = comEx[0]
-
-                        pathData[i + 2].values = [comEx.cp1.x, comEx.cp1.y, comEx.cp2.x, comEx.cp2.y, comEx.p.x, comEx.p.y]
-                        pathData[i + 2].cp1 = comEx.cp1
-                        pathData[i + 2].cp2 = comEx.cp2
-                        pathData[i + 2].p0 = comEx.p0
-                        pathData[i + 2].p = comEx.p
-                        pathData[i + 2].extreme = comEx.extreme
-
-                        i++
-                        continue
-                    }
-
-                }
-
             }
         }
+
+        /*
+        */
+
+
+
     }
 
     // remove commands
@@ -146,15 +168,15 @@ export function refineAdjacentExtremes(pathData, {
 
     if (penultimateCom && penultimateCom.type === 'C' && isCose && isClosingTo && fistExt) {
 
-        let dx1 = Math.abs(fistExt.cp1.x - M.x)
-        let dy1 = Math.abs(fistExt.cp1.y - M.y)
+        //let dx1 = Math.abs(fistExt.cp1.x - M.x)
+        //let dy1 = Math.abs(fistExt.cp1.y - M.y)
 
-        let horizontal = dy1 < dx1;
+        //let horizontal = dy1 < dx1;
         //console.log(dx1, dx2);
         //console.log('isCose', isCose, diff, dimA);
 
         let comEx = getCombinedByDominant(penultimateCom, lastCom, threshold, tolerance, false)
-        console.log('comEx', comEx);
+        //console.log('comEx', comEx);
 
         if (comEx.length === 1) {
             pathData[lastIdx - 1] = comEx[0];

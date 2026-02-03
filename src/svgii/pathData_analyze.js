@@ -112,6 +112,7 @@ export function analyzePathData(pathData = []) {
         com.directionChange = false;
         com.closePath = false;
         com.dimA = 0;
+        //com.flat = false;
 
 
         /**
@@ -181,14 +182,17 @@ export function analyzePathData(pathData = []) {
             commandPts.push(p);
 
             /*
+            //let commandFlatness = commandIsFlat(commandPts);
             let commandFlatness = commandIsFlat(commandPts);
             isFlat = commandFlatness.flat;
             com.flat = isFlat;
 
             if (isFlat) {
                 com.extreme = false;
+                //renderPoint(markers, p, 'red', '1%', '0.5')
             }
             */
+
         }
 
         /**

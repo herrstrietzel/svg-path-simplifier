@@ -3,19 +3,22 @@ import { getPolygonArea } from "./geometry_area.js";
 import { checkBezierFlatness, commandIsFlat } from "./geometry_flatness.js";
 import { renderPoint } from "./visualize.js";
 
-export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLinetos = true) {
+export function pathDataRemoveColinear(pathData, {
+    tolerance = 1, 
+    //toleranceCubics = null,
+    flatBezierToLinetos = true
+}={}) {
 
+    //toleranceCubics = !toleranceCubics ? tolerance : toleranceCubics;
     let pathDataN = [pathData[0]];
 
-
-    let lastType = 'L';
     let M = { x: pathData[0].values[0], y: pathData[0].values[1] }
     let p0 = M;
     let p = M
     let isClosed = pathData[pathData.length - 1].type.toLowerCase() === 'z'
 
     for (let c = 1, l = pathData.length; c < l; c++) {
-        let comPrev = pathData[c - 1];
+        //let comPrev = pathData[c - 1];
         let com = pathData[c];
         let comN = pathData[c + 1] || pathData[l - 1];
         let p1 = comN.type.toLowerCase() === 'z' ? M : { x: comN.values[comN.values.length - 2], y: comN.values[comN.values.length - 1] }
@@ -26,19 +29,17 @@ export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLine
 
         let area = getPolygonArea([p0, p, p1], true)
 
-        let distSquare0 = getSquareDistance(p0, p)
-        let distSquare1 = getSquareDistance(p, p1)
+        //let distSquare0 = getSquareDistance(p0, p)
+        //let distSquare1 = getSquareDistance(p, p1)
         let distSquare = getSquareDistance(p0, p1)
-        //distSquare = (distSquare0+distSquare1) / 2;
 
-        let distMax = distSquare / 200 * tolerance
+        let distMax = distSquare / 1000 * tolerance
 
         let isFlat = area < distMax;
         let isFlatBez = false;
 
 
         if (!flatBezierToLinetos && type === 'C') isFlat = false;
-        //let isFlat = flatBezierToLinetos && type === 'C' ? area < distMax : false
 
         // convert flat beziers to linetos
         if (flatBezierToLinetos && (type === 'C' || type === 'Q')) {
@@ -47,26 +48,14 @@ export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLine
             [{ x: values[0], y: values[1] }, { x: values[2], y: values[3] }] :
             (type === 'Q' ? [{ x: values[0], y: values[1] }] : []);
 
+            isFlatBez = commandIsFlat([p0, ...cpts, p],{tolerance});
 
-            //let areaBez = getPolygonArea([p0, ...cpts, p], true)
-
-            isFlatBez = checkBezierFlatness(p0, cpts, p)
-            //isFlatBez = commandIsFlat([p0, ...cpts, p]).flat
-           // console.log();
-
-            //isFlatBez = areaBez < distMax * 0.25
-            //console.log('isFlatBez', isFlatBez);
-            //isFlatBez = false
-
-            //&& comPrev.type !== 'C'
-            if (isFlatBez  && c < l - 1 && comPrev.type !== 'C') {
+            if (isFlatBez  && c < l - 1  ) {
                 type = "L"
                 com.type = "L"
                 com.values = valsL
-
-                //renderPoint(markers, p)
+                //renderPoint(markers, p, 'cyan', '1%', '0.5')
             }
-
         }
 
         // update end point
@@ -76,9 +65,9 @@ export function pathDataRemoveColinear(pathData, tolerance = 1, flatBezierToLine
         //&& comN.type==='L'
         if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) ) {
             //console.log(area,distMax );
-            //renderPoint(markers, p)
-            
             //if(comN.type!=='L' ){}
+
+            //renderPoint(markers, p, 'orange', '1%', '0.5')
             continue;
         }
 

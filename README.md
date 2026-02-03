@@ -3,9 +3,12 @@
 [![CDN](https://img.shields.io/badge/CDN-jsDelivr-E84D3D?style=flat)](https://cdn.jsdelivr.net/npm/svg-path-simplify@latest/dist/svg-path-simplify.min.js)
 [![CDN](https://img.shields.io/badge/CDN-unpkg-blue?style=flat)](https://www.unpkg.com/svg-path-simplify@latest/dist/svg-path-simplify.js)
 
+<div align="center" style="text-align:center">
+<img width="100" height="100" style="display:inline-block" src="./favicon.svg">
+<h1 align="center">svg-path-simplify</h1>
+<p align="center">Simplify Bézier paths while keeping shape</p>
+</div>   
 
-# svg-path-simplify
-Simplify Bézier paths while keeping shape.  
 
 ## *Watch the curve, not the file size!*   
 While this library reduces SVG markup sizes significantly by removing commands it prioritizes **visual quality** over numeric compression gains.
