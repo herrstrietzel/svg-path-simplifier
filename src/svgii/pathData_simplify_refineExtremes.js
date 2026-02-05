@@ -1,7 +1,7 @@
 import { findSplitT, getExtrapolatedCommand } from "../pathData_simplify_cubic";
 import { getCombinedByDominant } from "../pathData_simplify_cubic_extrapolate";
 import { getDistAv, interpolate } from "./geometry";
-import { getPathArea } from "./geometry_area";
+import { getPathArea, getPolygonArea } from "./geometry_area";
 import { getPathDataBBox } from "./geometry_bbox";
 import { interpolatedPathData } from "./pathData_interpolate";
 import { pathDataToD } from "./pathData_stringify";
@@ -39,41 +39,20 @@ export function refineAdjacentExtremes(pathData, {
         let isCose2 = diff2 < threshold;
 
 
+        // next is extreme
         if (comN && type === 'C' && comN.type === 'C' && extreme && comN2 && comN2.extreme) {
 
 
             if (isCose2 || isCose) {
 
-                /*
-                //renderPoint(markers, com.p, 'green', '1%', '0.5')
-                renderPoint(markers, comN.p, 'cyan', '1%', '0.5')
-                renderPoint(markers, comN2.p, 'magenta', '1%', '0.5')
-
-
-                let coms = [comN, comN2]
-                let t0 = findSplitT(...coms);
-                let comS = getExtrapolatedCommand(...coms, t0, t0)
-
-                let pathDataE = [
-                    {type: 'M', values: [comS.p0.x, comS.p0.y] },
-                    {type:'C', values:[comS.cp1.x, comS.cp1.y, comS.cp2.x, comS.cp2.y, comS.p.x, comS.p.y]}
-                ]
-
-                //let d0 = `M${comS.p0.x} ${comS.p0.y} C${comS.cp1.x} ${comS.cp1.y} ${comS.cp2.x} ${comS.cp2.y} ${comS.p.x} ${comS.p.y}`
-                let d0 = pathDataToD(pathDataE)
-                renderPath(markers, d0)
-                */
-
-
                 // extrapolate
                 let comEx = getCombinedByDominant(comN, comN2, threshold, tolerance, false)
                 //console.log('comEx', comEx);
+                //renderPoint(markers, comN.p)
 
                 if (comEx.length === 1) {
 
-
                     pathData[i + 1] = null;
-
                     comEx = comEx[0]
 
                     pathData[i + 2].values = [comEx.cp1.x, comEx.cp1.y, comEx.cp2.x, comEx.cp2.y, comEx.p.x, comEx.p.y]
@@ -83,33 +62,6 @@ export function refineAdjacentExtremes(pathData, {
                     pathData[i + 2].p = comEx.p
                     pathData[i + 2].extreme = comEx.extreme
 
-                    /*
-                    let tEx = comEx.t0
-                    let pathDataS = [
-                        {type: 'M', values: [comEx.p0.x, comEx.p0.y] },
-                        pathData[i + 2]
-                    ]
-
-                    let d2 = pathDataToD(pathDataS)
-                    //renderPath(markers, d2, 'magenta')
-
-                    // interpolate
-                    let tN = 1+tEx*0.5
-                    let pathDataI = interpolatedPathData(pathDataE, pathDataS, tN).pathData;
-
-                    console.log('pathDataI', pathDataI, t0, tEx, 'tN', tN);
-
-
-                    pathData[i + 2].values = pathDataI[1].values
-                    pathData[i + 2].cp1 = {x:pathDataI[1].values[0], y:pathDataI[1].values[1]}
-                    pathData[i + 2].cp2 = {x:pathDataI[1].values[2], y:pathDataI[1].values[3]}
-
-
-                    //let dI = pathDataToD(pathDataI)
-                    //renderPath(markers, dI, 'orange', '1%', '0.5')
-                    */
-
-
                     i++
                     continue
                 }
@@ -118,13 +70,11 @@ export function refineAdjacentExtremes(pathData, {
         }
 
 
-        // adjacent 
-        //&& comN.extreme 
-        // && !corner
-        if (comN && type === 'C' && comN.type === 'C' && extreme) {
+        // short after extreme
+
+        if (comN && type === 'C' && comN.type === 'C' && extreme ) {
 
             if (isCose) {
-
 
                 //renderPoint(markers, com.p, 'cyan', '1%', '0.5')
                 //renderPoint(markers, comN.p, 'cyan', '1%', '0.5')
@@ -140,14 +90,25 @@ export function refineAdjacentExtremes(pathData, {
                 let ptI;
                 let t = 1;
 
-                //renderPoint(markers, comN.p, 'orange', '1%', '0.5')
+                let area0 = getPolygonArea([com.p0, com.p , comN.p])
+                // cpts area
+                let area1 = getPolygonArea([com.p0, com.cp1, com.cp2, com.p])
 
+                // sign change: is corner => skip
+                if ( (area0<0 && area1>0)  || (area0>0 && area1<0)) {
+                    //renderPoint(markers, com.p, 'orange', '1%', '0.5')
+                    continue;
+                }
+
+                
                 if (comN.extreme) {
 
                     // extend cp2
                     if (horizontal) {
                         t = Math.abs(Math.abs(comN.cp2.x - comN.p.x) / Math.abs(com.cp2.x - com.p.x))
+                        t = Math.min(1, t)
                         //console.log('t', t);
+
                         ptI = interpolate(comN.p, com.cp2, 1 + t)
                         com.cp2.x = ptI.x
                         //renderPoint(markers, com.cp2, 'cyan', '1%', '0.5')
@@ -156,6 +117,9 @@ export function refineAdjacentExtremes(pathData, {
                     else {
                         //renderPoint(markers, comN.p0, 'cyan', '1%', '0.5')
                         t = Math.abs(Math.abs(comN.cp2.y - comN.p.y) / Math.abs(com.cp2.y - com.p.y))
+                        t = Math.min(1, t)
+                        //console.log('t v', t);
+
                         ptI = interpolate(comN.p, com.cp2, 1 + t)
                         com.cp2.y = ptI.y
                     }
@@ -179,7 +143,6 @@ export function refineAdjacentExtremes(pathData, {
 
         /*
         */
-
 
 
     }
@@ -234,7 +197,7 @@ export function refineAdjacentExtremes(pathData, {
             pathData = pathData.filter(Boolean)
         }
 
-
+        //console.log(pathData);
     }
 
 

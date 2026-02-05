@@ -31,7 +31,8 @@ export function commandIsFlat(points, {
 
     if(debug){
         report.flat = isFlat;
-        report.steepness = area/threshold
+        //report.steepness = area/threshold
+        report.steepness = area/squareDist*10
     }
 
     return !debug ? isFlat : report;

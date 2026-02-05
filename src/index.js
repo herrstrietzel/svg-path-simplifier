@@ -8,6 +8,7 @@ export {DOMParserPoly as DOMParserPoly};
 import { renderPoint } from './svgii/visualize';
 
 import {svgPathSimplify} from './pathSimplify-main';
+//import { parsePathDataNormalized } from './svgii/pathData_parse';
 //import {getViewBox} from './svg_getViewbox';
 
 export {svgPathSimplify as svgPathSimplify};
@@ -20,9 +21,11 @@ export {
 
 
 
+
 // IIFE 
 if (typeof window !== 'undefined') {
     window.svgPathSimplify = svgPathSimplify;
+    //window.svgPathSimplify = parsePathDataNormalized;
     //window.getViewBox = getViewBox;
     //window.renderPoint = renderPoint;
 }

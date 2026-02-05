@@ -1,5 +1,6 @@
 export function removeOrphanedM(pathData) {
 
+    let pathDataN = []
     for (let i = 0, l = pathData.length; i < l; i++) {
         let com = pathData[i];
         if (!com) continue;
@@ -8,13 +9,13 @@ export function removeOrphanedM(pathData) {
         if ((type === 'M' || type === 'm')) {
 
             if (!comN || (comN && (comN.type === 'Z' || comN.type === 'z'))) {
-                pathData[i] = null
-                pathData[i + 1] = null
+                if(comN) i++
+                continue
             }
         }
+        pathDataN.push(com)
     }
 
-    pathData = pathData.filter(Boolean);
-    return pathData;
+    return pathDataN;
 
 }

@@ -21,8 +21,6 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
         };
     }
 
-
-
     // if combining fails return original commands
     let commands = [com1, com2]
 
@@ -30,11 +28,7 @@ export function getCombinedByDominant(com1, com2, maxDist = 0, tolerance = 1, de
     let dist1 = getDistAv(com1.p0, com1.p)
     let dist2 = getDistAv(com2.p0, com2.p)
 
-
     let reverse = dist1 > dist2;
-
-    //let ang1 = getAngle(com1.p0, com1.cp1)
-    //let ang2 = getAngle(com2.p, com1.cp2)
 
     // backup original commands
     let com1_o = JSON.parse(JSON.stringify(com1))

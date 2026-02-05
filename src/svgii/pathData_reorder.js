@@ -14,6 +14,8 @@ export function pathDataToTopLeft(pathData) {
     let len = pathData.length;
     let isClosed = pathData[len - 1].type.toLowerCase() === 'z'
 
+    //return pathData;
+
     // we can't change starting point for non closed paths
     if (!isClosed) {
         return pathData
@@ -53,6 +55,8 @@ export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = 
     let isClosed = pathData[len - 1].type.toLowerCase() === 'z'
 
     let linetos = pathData.filter(com => com.type === 'L')
+
+    //return pathData;
 
 
     // check if order is ideal
@@ -107,7 +111,7 @@ export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = 
         }
         // use top most command
         else {
-            indices = indices.sort((a, b) => +a.y.toFixed(1) - +b.y.toFixed(1) || a.x - b.x);
+            indices = indices.sort((a, b) => +a.y.toFixed(8) - +b.y.toFixed(8) || a.x - b.x);
             newIndex = indices[0].index
         }
 
@@ -116,7 +120,7 @@ export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = 
     }
 
 
-    M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(7) }
+    M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) }
 
     len = pathData.length
 

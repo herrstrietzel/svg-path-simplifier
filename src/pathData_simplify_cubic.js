@@ -44,7 +44,7 @@ export function simplifyPathDataCubic(pathData, {
             // try simplification
             else {
                 //renderPoint(markers, p, 'magenta', '1%')
-                let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance)
+                let combined = combineCubicPairs(com, comN, {tolerance})
                 let error = 0;
 
                 // combining successful! try next segment
@@ -58,7 +58,7 @@ export function simplifyPathDataCubic(pathData, {
 
                     // find next candidates
                     //offset<2 &&
-                    for (let n = i + 1;  error < tolerance  && n < l; n++) {
+                    for (let n = i + 1; error < tolerance && n < l; n++) {
                         let comN = pathData[n]
                         if (comN.type !== 'C' ||
                             (
@@ -70,7 +70,7 @@ export function simplifyPathDataCubic(pathData, {
                             break
                         }
 
-                        let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance)
+                        let combined = combineCubicPairs(com, comN, {tolerance})
                         if (combined.length === 1) {
                             // add cumulative error to prevent distortions
                             //console.log('combined', combined);
@@ -109,30 +109,29 @@ export function simplifyPathDataCubic(pathData, {
 
 
 
-export function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 1) {
+export function combineCubicPairs(com1, com2, {
+    tolerance = 1
+} = {}) {
 
     let commands = [com1, com2];
-    let t = findSplitT(com1, com2);
 
-    //threshold = 0.01
+    // assume 2 segments are result of a segment split
+    let t = findSplitT(com1, com2);
 
     let distAv1 = getDistAv(com1.p0, com1.p);
     let distAv2 = getDistAv(com2.p0, com2.p);
-    let distMin = Math.max(0,Math.min(distAv1, distAv2))
-    //let distMax = Math.max(distAv1, distAv2)
+    let distMin = Math.max(0, Math.min(distAv1, distAv2))
 
-    //let distScale = 0.05
+
     let distScale = 0.06
-    let maxDist = distMin * distScale * tolerance 
-    //tolerance = distMax * threshold
+    let maxDist = distMin * distScale * tolerance
 
-    let comS = getExtrapolatedCommand(com1, com2, t, t)
+    // get hypothetical combined command
+    let comS = getExtrapolatedCommand(com1, com2, t)
 
-    // test on path point against original
+    // test new point-at-t against original mid segment starting point
     let pt = pointAtT([comS.p0, comS.cp1, comS.cp2, comS.p], t)
 
-
-    //let tolerance = Math.min(Math.max(com1.dimA, com2.dimA), Math.min(com1.dimA, com2.dimA)) * 0.05
 
     let dist0 = getDistAv(com1.p, pt)
     let dist1 = 0, dist2 = 0;
@@ -143,14 +142,6 @@ export function combineCubicPairs(com1, com2, extrapolateDominant = false, toler
     let error = dist0;
 
 
-
-    /*
-    if (com2.directionChange) {
-        //renderPoint(markers, com2.p0)
-    }
-    */
-
-    //console.log('tolerance', tolerance, close, dist0);
 
     if (close) {
 
@@ -206,34 +197,10 @@ export function combineCubicPairs(com1, com2, extrapolateDominant = false, toler
     } // end 1st try
 
 
-    
-
-    // try extrapolated dominant curve
-    //&& !com2.extreme
-    //  && !com1.extreme
-
-    /*
-    if (extrapolateDominant && !success  ) {
-
-        let combinedEx = getCombinedByDominant(com1, com2, maxDist, tolerance*0.25);
-        //console.log('???combinedEx', combinedEx);
-
-        if(combinedEx.length===1){
-            success = true
-            comS = combinedEx[0]
-            error = comS.error
-            //console.log('!!!combinedEx', combinedEx);
-        }
-    }
-    */
-
 
     // add meta
     if (success) {
 
-        //comS.dimA = (Math.abs(comS.p0.x - comS.p.x) + Math.abs(comS.p0.y - comS.p.y)) / 2
-
-        
         // correct to exact start and end points
         comS.p0 = com1.p0
         comS.p = com2.p
@@ -251,8 +218,6 @@ export function combineCubicPairs(com1, com2, extrapolateDominant = false, toler
 
         //comS.p0 = com1.p0;
         commands = [comS];
-
-        //console.log('commands combined', commands);
 
     }
 
@@ -276,28 +241,23 @@ export function getError(com, area = 0, threshold = 0) {
 }
 
 
-export function getExtrapolatedCommand(com1, com2, t1 = 0, t2 = 0) {
+export function getExtrapolatedCommand(com1, com2, t = 0) {
 
     let { p0, cp1 } = com1;
     let { p, cp2 } = com2;
 
     // extrapolate control points
-    let cp1_S = {
-        x: (cp1.x - (1 - t1) * p0.x) / t1,
-        y: (cp1.y - (1 - t1) * p0.y) / t1
+    cp1 = {
+        x: (cp1.x - (1 - t) * p0.x) / t,
+        y: (cp1.y - (1 - t) * p0.y) / t
     };
 
-
-    let cp2_S = {
-        x: (cp2.x - t2 * p.x) / (1 - t2),
-        y: (cp2.y - t2 * p.y) / (1 - t2)
+    cp2 = {
+        x: (cp2.x - t * p.x) / (1 - t),
+        y: (cp2.y - t * p.y) / (1 - t)
     };
 
-    let comS = { p0, cp1: cp1_S, cp2: cp2_S, p };
-    //let pt = pointAtT([p0, cp1_S, cp2_S, p], (t1 + t2) / 2);
-
-    return comS
-
+    return { p0, cp1, cp2, p };
 }
 
 

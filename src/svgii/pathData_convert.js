@@ -32,7 +32,7 @@ export function revertCubicQuadratic(p0 = {}, cp1 = {}, cp2 = {}, p = {}) {
     let values = [cp1.x, cp1.y, cp2.x, cp2.y, p.x, p.y];
     let comN = {type, values}
 
-    if (dist1 < threshold) {
+    if (dist1 && threshold && dist1 < threshold) {
         cp1_Q = checkLineIntersection(p0, cp1, p, cp2, false);
         if (cp1_Q) {
             //renderPoint(markers, cp1_Q )

@@ -47,23 +47,29 @@ function detectInputType(input) {
     if (input instanceof ArrayBuffer) return "buffer";
     if (input instanceof Blob) return "blob";
     */
-    if (Array.isArray(input)) return "array";
+    if (Array.isArray(input)) {
+        if (input[0]?.type && input[0]?.values 
+        ) {
+            return "pathData";
+        }
+
+        return "array";
+    }
 
     if (typeof input === "string") {
         input = input.trim();
         let isSVG = input.includes('<svg') && input.includes('</svg');
         let isPathData = input.startsWith('M') || input.startsWith('m');
-        let isPolyString = !isNaN(input.substring(0, 1)) && !isNaN(input.substring(input.length-1, input.length));
+        let isPolyString = !isNaN(input.substring(0, 1)) && !isNaN(input.substring(input.length - 1, input.length));
 
-        
-        if(isSVG) {
-            type='svgMarkup';
+        if (isSVG) {
+            type = 'svgMarkup';
         }
-        else if(isPathData) {
-            type='pathDataString';
+        else if (isPathData) {
+            type = 'pathDataString';
         }
-        else if(isPolyString) {
-            type='polyString';
+        else if (isPolyString) {
+            type = 'polyString';
         }
 
         else {
@@ -1794,7 +1800,7 @@ function simplifyPathDataCubic(pathData, {
             // try simplification
             else {
 
-                let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance);
+                let combined = combineCubicPairs(com, comN, {tolerance});
                 let error = 0;
 
                 // combining successful! try next segment
@@ -1807,7 +1813,7 @@ function simplifyPathDataCubic(pathData, {
 
                     // find next candidates
 
-                    for (let n = i + 1;  error < tolerance  && n < l; n++) {
+                    for (let n = i + 1; error < tolerance && n < l; n++) {
                         let comN = pathData[n];
                         if (comN.type !== 'C' ||
                             (
@@ -1819,7 +1825,7 @@ function simplifyPathDataCubic(pathData, {
                             break
                         }
 
-                        let combined = combineCubicPairs(com, comN, extrapolateDominant, tolerance);
+                        let combined = combineCubicPairs(com, comN, {tolerance});
                         if (combined.length === 1) {
                             // add cumulative error to prevent distortions
 
@@ -1853,21 +1859,26 @@ function simplifyPathDataCubic(pathData, {
     return pathDataN
 }
 
-function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 1) {
+function combineCubicPairs(com1, com2, {
+    tolerance = 1
+} = {}) {
 
     let commands = [com1, com2];
+
+    // assume 2 segments are result of a segment split
     let t = findSplitT(com1, com2);
 
     let distAv1 = getDistAv(com1.p0, com1.p);
     let distAv2 = getDistAv(com2.p0, com2.p);
-    let distMin = Math.max(0,Math.min(distAv1, distAv2));
+    let distMin = Math.max(0, Math.min(distAv1, distAv2));
 
     let distScale = 0.06;
-    let maxDist = distMin * distScale * tolerance; 
+    let maxDist = distMin * distScale * tolerance;
 
-    let comS = getExtrapolatedCommand(com1, com2, t, t);
+    // get hypothetical combined command
+    let comS = getExtrapolatedCommand(com1, com2, t);
 
-    // test on path point against original
+    // test new point-at-t against original mid segment starting point
     let pt = pointAtT([comS.p0, comS.cp1, comS.cp2, comS.p], t);
 
     let dist0 = getDistAv(com1.p, pt);
@@ -1877,12 +1888,6 @@ function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 
 
     // collect error data
     let error = dist0;
-
-    /*
-    if (com2.directionChange) {
-
-    }
-    */
 
     if (close) {
 
@@ -1929,30 +1934,9 @@ function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 
 
     } // end 1st try
 
-    
-
-    // try extrapolated dominant curve
-
-    //  && !com1.extreme
-
-    /*
-    if (extrapolateDominant && !success  ) {
-
-        let combinedEx = getCombinedByDominant(com1, com2, maxDist, tolerance*0.25);
-
-        if(combinedEx.length===1){
-            success = true
-            comS = combinedEx[0]
-            error = comS.error
-
-        }
-    }
-    */
-
     // add meta
     if (success) {
 
-        
         // correct to exact start and end points
         comS.p0 = com1.p0;
         comS.p = com2.p;
@@ -1975,26 +1959,23 @@ function combineCubicPairs(com1, com2, extrapolateDominant = false, tolerance = 
     return commands;
 }
 
-function getExtrapolatedCommand(com1, com2, t1 = 0, t2 = 0) {
+function getExtrapolatedCommand(com1, com2, t = 0) {
 
     let { p0, cp1 } = com1;
     let { p, cp2 } = com2;
 
     // extrapolate control points
-    let cp1_S = {
-        x: (cp1.x - (1 - t1) * p0.x) / t1,
-        y: (cp1.y - (1 - t1) * p0.y) / t1
+    cp1 = {
+        x: (cp1.x - (1 - t) * p0.x) / t,
+        y: (cp1.y - (1 - t) * p0.y) / t
     };
 
-    let cp2_S = {
-        x: (cp2.x - t2 * p.x) / (1 - t2),
-        y: (cp2.y - t2 * p.y) / (1 - t2)
+    cp2 = {
+        x: (cp2.x - t * p.x) / (1 - t),
+        y: (cp2.y - t * p.y) / (1 - t)
     };
 
-    let comS = { p0, cp1: cp1_S, cp2: cp2_S, p };
-
-    return comS
-
+    return { p0, cp1, cp2, p };
 }
 
 function findSplitT(com1, com2) {
@@ -2036,7 +2017,8 @@ function commandIsFlat(points, {
 
     if(debug){
         report.flat = isFlat;
-        report.steepness = area/threshold;
+
+        report.steepness = area/squareDist*10;
     }
 
     return !debug ? isFlat : report;
@@ -2357,7 +2339,7 @@ function revertCubicQuadratic(p0 = {}, cp1 = {}, cp2 = {}, p = {}) {
     let values = [cp1.x, cp1.y, cp2.x, cp2.y, p.x, p.y];
     let comN = {type, values};
 
-    if (dist1 < threshold) {
+    if (dist1 && threshold && dist1 < threshold) {
         cp1_Q = checkLineIntersection(p0, cp1, p, cp2, false);
         if (cp1_Q) {
 
@@ -3288,10 +3270,10 @@ function normalizePathData(pathData = [],
         quadraticToCubic = false,
         arcToCubic = false,
         arcAccuracy = 2,
-    } = {},
 
-    {
+        // assume we need full normalization
         hasRelatives = true, hasShorthands = true, hasQuadratics = true, hasArcs = true, testTypes = false
+
     } = {}
 ) {
 
@@ -3342,17 +3324,28 @@ function parsePathDataNormalized(d,
     } = {}
 ) {
 
-    let pathDataObj = parsePathDataString(d);
+    // is already array
+    let isArray = Array.isArray(d);
 
-    let { hasRelatives, hasShorthands, hasQuadratics, hasArcs } = pathDataObj;
-    let pathData = pathDataObj.pathData;
+    // normalize native pathData to regular array
+    let hasConstructor = isArray && typeof d[0] === 'object' && typeof d[0].constructor === 'function';
+    /*
+    if (hasConstructor) {
+        d = d.map(com => { return { type: com.type, values: com.values } })
+        console.log('hasConstructor', hasConstructor, (typeof d[0].constructor), d);
+    }
+    */
+
+    let pathDataObj = isArray ? d : parsePathDataString(d);
+
+    let { hasRelatives = true, hasShorthands = true, hasQuadratics = true, hasArcs = true } = pathDataObj;
+    let pathData = hasConstructor ? pathDataObj : pathDataObj.pathData;
 
     // normalize
-
     pathData = normalizePathData(pathData,
-        { toAbsolute, toLonghands, quadraticToCubic, arcToCubic, arcAccuracy },
-
-        { hasRelatives, hasShorthands, hasQuadratics, hasArcs }
+        { toAbsolute, toLonghands, quadraticToCubic, arcToCubic, arcAccuracy,
+        hasRelatives, hasShorthands, hasQuadratics, hasArcs 
+        },
     );
 
     return pathData;
@@ -3704,7 +3697,8 @@ function parsePathDataString(d, debug = true) {
         if (debug === 'log') {
             console.log(feedback);
         } else {
-            throw new Error(feedback)
+
+            console.warn(feedback);
         }
     }
 
@@ -3991,6 +3985,7 @@ function pathDataRemoveColinear(pathData, {
 
         let com = pathData[c];
         let comN = pathData[c + 1] || pathData[l - 1];
+
         let p1 = comN.type.toLowerCase() === 'z' ? M : { x: comN.values[comN.values.length - 2], y: comN.values[comN.values.length - 1] };
 
         let { type, values } = com;
@@ -4001,7 +3996,7 @@ function pathDataRemoveColinear(pathData, {
 
         let distSquare = getSquareDistance(p0, p1);
 
-        let distMax = distSquare / 1000 * tolerance;
+        let distMax = distSquare ? distSquare / 333 * tolerance : 0;
 
         let isFlat = area < distMax;
         let isFlatBez = false;
@@ -4025,15 +4020,27 @@ function pathDataRemoveColinear(pathData, {
             }
         }
 
-        // update end point
-        p0 = p;
-
         // colinear – exclude arcs (as always =) as semicircles won't have an area
 
         if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) ) {
+            
+            /*
+            console.log(area, distMax );
+
+            if(p0.x === p.x && p0.y === p.y){
+
+            }
+
+            renderPoint(markers, p0, 'blue', '1.5%', '1')
+            renderPoint(markers, p, 'red', '1%', '1')
+            renderPoint(markers, p1, 'cyan', '0.5%', '1')
+            */
 
             continue;
         }
+
+        // update end point
+        p0 = p;
 
         if (type === 'M') {
             M = p;
@@ -4055,6 +4062,7 @@ function pathDataRemoveColinear(pathData, {
 
 function removeOrphanedM(pathData) {
 
+    let pathDataN = [];
     for (let i = 0, l = pathData.length; i < l; i++) {
         let com = pathData[i];
         if (!com) continue;
@@ -4063,14 +4071,14 @@ function removeOrphanedM(pathData) {
         if ((type === 'M' || type === 'm')) {
 
             if (!comN || (comN && (comN.type === 'Z' || comN.type === 'z'))) {
-                pathData[i] = null;
-                pathData[i + 1] = null;
+                if(comN) i++;
+                continue
             }
         }
+        pathDataN.push(com);
     }
 
-    pathData = pathData.filter(Boolean);
-    return pathData;
+    return pathDataN;
 
 }
 
@@ -4101,19 +4109,23 @@ function removeZeroLengthLinetos(pathData) {
 
     for (let c = 1, l = pathData.length; c < l; c++) {
         let com = pathData[c];
+        let comPrev = pathData[c-1]; 
+        let comNext = pathData[c+1] || null;
         let { type, values } = com;
 
-        let valsLen = values.length;
+        // zero length segments are simetimes used in icons for dots
+        let isDot = comPrev.type.toLowerCase() ==='m' && !comNext;
 
+        let valsLen = values.length;
         p = { x: values[valsLen-2], y: values[valsLen-1] };
 
         // skip lineto
-        if (type === 'L' && p.x === p0.x && p.y === p0.y) {
+        if (!isDot && type === 'L' && p.x === p0.x && p.y === p0.y) {
             continue
         }
 
         // skip minified zero length
-        if (type === 'l' || type === 'v' || type === 'h') {
+        if (!isDot && (type === 'l' || type === 'v' || type === 'h')) {
             let noLength = type === 'l' ? (values.join('') === '00') : values[0] === 0;
             if(noLength) continue
         } 
@@ -4215,7 +4227,7 @@ function optimizeClosePath(pathData, removeFinalLineto = true, reorder = true) {
         }
         // use top most command
         else {
-            indices = indices.sort((a, b) => +a.y.toFixed(1) - +b.y.toFixed(1) || a.x - b.x);
+            indices = indices.sort((a, b) => +a.y.toFixed(8) - +b.y.toFixed(8) || a.x - b.x);
             newIndex = indices[0].index;
         }
 
@@ -4223,7 +4235,7 @@ function optimizeClosePath(pathData, removeFinalLineto = true, reorder = true) {
         pathData = newIndex ? shiftSvgStartingPoint(pathData, newIndex) : pathData;
     }
 
-    M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(7) };
+    M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) };
 
     len = pathData.length;
 
@@ -4362,27 +4374,10 @@ function refineAdjacentExtremes(pathData, {
         let diff2 = comN2 ? getDistAv(comN2.p, comN.p) : Infinity;
         let isCose2 = diff2 < threshold;
 
+        // next is extreme
         if (comN && type === 'C' && comN.type === 'C' && extreme && comN2 && comN2.extreme) {
 
             if (isCose2 || isCose) {
-
-                /*
-
-                renderPoint(markers, comN.p, 'cyan', '1%', '0.5')
-                renderPoint(markers, comN2.p, 'magenta', '1%', '0.5')
-
-                let coms = [comN, comN2]
-                let t0 = findSplitT(...coms);
-                let comS = getExtrapolatedCommand(...coms, t0, t0)
-
-                let pathDataE = [
-                    {type: 'M', values: [comS.p0.x, comS.p0.y] },
-                    {type:'C', values:[comS.cp1.x, comS.cp1.y, comS.cp2.x, comS.cp2.y, comS.p.x, comS.p.y]}
-                ]
-
-                let d0 = pathDataToD(pathDataE)
-                renderPath(markers, d0)
-                */
 
                 // extrapolate
                 let comEx = getCombinedByDominant(comN, comN2, threshold, tolerance, false);
@@ -4390,7 +4385,6 @@ function refineAdjacentExtremes(pathData, {
                 if (comEx.length === 1) {
 
                     pathData[i + 1] = null;
-
                     comEx = comEx[0];
 
                     pathData[i + 2].values = [comEx.cp1.x, comEx.cp1.y, comEx.cp2.x, comEx.cp2.y, comEx.p.x, comEx.p.y];
@@ -4400,27 +4394,6 @@ function refineAdjacentExtremes(pathData, {
                     pathData[i + 2].p = comEx.p;
                     pathData[i + 2].extreme = comEx.extreme;
 
-                    /*
-                    let tEx = comEx.t0
-                    let pathDataS = [
-                        {type: 'M', values: [comEx.p0.x, comEx.p0.y] },
-                        pathData[i + 2]
-                    ]
-
-                    let d2 = pathDataToD(pathDataS)
-
-                    // interpolate
-                    let tN = 1+tEx*0.5
-                    let pathDataI = interpolatedPathData(pathDataE, pathDataS, tN).pathData;
-
-                    console.log('pathDataI', pathDataI, t0, tEx, 'tN', tN);
-
-                    pathData[i + 2].values = pathDataI[1].values
-                    pathData[i + 2].cp1 = {x:pathDataI[1].values[0], y:pathDataI[1].values[1]}
-                    pathData[i + 2].cp2 = {x:pathDataI[1].values[2], y:pathDataI[1].values[3]}
-
-                    */
-
                     i++;
                     continue
                 }
@@ -4428,10 +4401,9 @@ function refineAdjacentExtremes(pathData, {
 
         }
 
-        // adjacent 
+        // short after extreme
 
-        // && !corner
-        if (comN && type === 'C' && comN.type === 'C' && extreme) {
+        if (comN && type === 'C' && comN.type === 'C' && extreme ) {
 
             if (isCose) {
 
@@ -4444,11 +4416,23 @@ function refineAdjacentExtremes(pathData, {
                 let ptI;
                 let t = 1;
 
+                let area0 = getPolygonArea([com.p0, com.p , comN.p]);
+                // cpts area
+                let area1 = getPolygonArea([com.p0, com.cp1, com.cp2, com.p]);
+
+                // sign change: is corner => skip
+                if ( (area0<0 && area1>0)  || (area0>0 && area1<0)) {
+
+                    continue;
+                }
+
+                
                 if (comN.extreme) {
 
                     // extend cp2
                     if (horizontal) {
                         t = Math.abs(Math.abs(comN.cp2.x - comN.p.x) / Math.abs(com.cp2.x - com.p.x));
+                        t = Math.min(1, t);
 
                         ptI = interpolate(comN.p, com.cp2, 1 + t);
                         com.cp2.x = ptI.x;
@@ -4457,6 +4441,8 @@ function refineAdjacentExtremes(pathData, {
                     else {
 
                         t = Math.abs(Math.abs(comN.cp2.y - comN.p.y) / Math.abs(com.cp2.y - com.p.y));
+                        t = Math.min(1, t);
+
                         ptI = interpolate(comN.p, com.cp2, 1 + t);
                         com.cp2.y = ptI.y;
                     }
@@ -4542,7 +4528,7 @@ function cleanUpSVG(svgMarkup, {
     .querySelector("svg");
   
   
-  let allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class', 'fill', 'stroke', 'stroke-width'];
+  let allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'];
   removeExcludedAttribues(svg, allowed);
   
   let removeEls = ['metadata', 'script'];
@@ -4613,6 +4599,156 @@ function stringifySVG(svg){
   return markup
 }
 
+function refineRoundedCorners(pathData, {
+    threshold = 0,
+    tolerance = 1
+} = {}) {
+
+    let l = pathData.length;
+
+    // add fist command
+    let pathDataN = [pathData[0]];
+
+    let isClosed = pathData[l - 1].type.toLowerCase() === 'z';
+    let lastOff = isClosed ? 2 : 1;
+
+    let comLast = pathData[l - lastOff];
+    let lastIsLine = comLast.type === 'L';
+    let lastIsBez = comLast.type === 'C';
+    let firstIsLine = pathData[1].type === 'L';
+    let firstIsBez = pathData[1].type === 'C';
+
+    let normalizeClose = isClosed && firstIsBez;
+
+    // normalize closepath to lineto
+    if (normalizeClose) {
+        pathData[l - 1].values = pathData[0].values;
+        pathData[l - 1].type = 'L';
+        lastIsLine = true;
+    }
+
+    for (let i = 1; i < l; i++) {
+        let com = pathData[i];
+        let { type } = com;
+        let comN = pathData[i + 1] ? pathData[i + 1] : null;
+
+        // search small cubic segments enclosed by linetos
+        if ((type === 'L' && comN && comN.type === 'C') ||
+            (type === 'C' && comN && comN.type === 'L')
+
+        ) {
+            let comL0 = com;
+            let comL1 = null;
+            let comBez = [];
+            let offset = 0;
+
+            // start to end
+            if (i === 1 && firstIsBez && lastIsLine) {
+                comBez = [pathData[1]];
+                comL0 = pathData[l - 1];
+                comL1 = comN;
+
+            }
+
+            // closing corner to start
+            if (isClosed && lastIsBez && firstIsLine && i === l - lastOff - 1) {
+                comL1 = pathData[1];
+                comBez = [pathData[l - lastOff]];
+
+            }
+
+            for (let j = i + 1; j < l; j++) {
+                let comN = pathData[j] ? pathData[j] : null;
+                let comPrev = pathData[j - 1];
+
+                if (comPrev.type === 'C') {
+                    comBez.push(comPrev);
+                }
+
+                if (comN.type === 'L' && comPrev.type === 'C') {
+                    comL1 = comN;
+                    break;
+                }
+                offset++;
+            }
+
+            if (comL1) {
+
+                // linetos
+                let len1 = getDistAv(comL0.p0, comL0.p);
+                let len2 = getDistAv(comL1.p0, comL1.p);
+
+                // bezier
+
+                let comBezLen = comBez.length;
+                let len3 = getDistAv(comBez[0].p0, comBez[comBezLen - 1].p);
+
+                // check concaveness by area sign change
+                let area1 = getPolygonArea([comL0.p0, comL0.p, comL1.p0, comL1.p], false);
+                let area2 = getPolygonArea([comBez[0].p0, comBez[0].cp1, comBez[0].cp2, comBez[0].p], false);
+
+                let signChange = (area1 < 0 && area2 > 0) || (area1 > 0 && area2 < 0);
+
+                if (comBez && !signChange && len3 < threshold && len1 > len3 && len2 > len3) {
+
+                    let ptQ = checkLineIntersection(comL0.p0, comL0.p, comL1.p0, comL1.p, false);
+                    if (ptQ) {
+
+                        /*
+                        let dist1 = getDistAv(ptQ, comL0.p)
+                        let dist2 = getDistAv(ptQ, comL1.p0)
+                        let diff = Math.abs(dist1-dist2)
+                        let rat =  diff/Math.max(dist1, dist2)
+                        console.log('rat', rat);
+                        */
+
+                        /*
+                        // adjust curve start and end to meet original
+                        let t = 1
+
+                        let p0_2 = pointAtT([ptQ, comL0.p], t)
+
+                        comL0.p = p0_2
+                        comL0.values = [p0_2.x, p0_2.y]
+
+                        let p_2 = pointAtT([ptQ, comL1.p0], t)
+
+                        comL1.p0 = p_2
+
+                        */
+
+                        let comQ = { type: 'Q', values: [ptQ.x, ptQ.y, comL1.p0.x, comL1.p0.y] };
+                        comQ.p0 = comL0.p;
+                        comQ.cp1 = ptQ;
+                        comQ.p = comL1.p0;
+
+                        // add quadratic command
+                        pathDataN.push(comL0, comQ);
+                        i += offset;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // skip last lineto
+        if (normalizeClose && i === l - 1 && type === 'L') {
+            continue
+        }
+
+        pathDataN.push(com);
+
+    }
+
+    // revert close path normalization
+    if (normalizeClose) {
+        pathDataN.push({ type: 'Z', values: [] });
+    }
+
+    return pathDataN;
+
+}
+
 function svgPathSimplify(input = '', {
 
     // return svg markup or object
@@ -4637,6 +4773,8 @@ function svgPathSimplify(input = '', {
     revertToQuadratics = true,
 
     refineExtremes = true,
+    refineCorners = false, 
+
     keepExtremes = true,
     keepCorners = true,
     extrapolateDominant = true,
@@ -4691,6 +4829,16 @@ function svgPathSimplify(input = '', {
         } else if (inputType === 'polyString') {
             d = 'M' + input;
         }
+        else if (inputType === 'pathData') {
+            d = input;
+
+            // stringify to compare lengths
+
+            let dStr = d.map(com=>{return `${com.type} ${com.values.join(' ')}`}).join(' ') ;
+            svgSize = dStr.length;
+
+        }
+
         paths.push({ d, el: null });
     }
     // mode:1 – process complete svg DOM
@@ -4700,9 +4848,9 @@ function svgPathSimplify(input = '', {
         svg = cleanUpSVG(input, { returnDom, removeHidden, removeUnused }
         );
 
-        if(shapesToPaths){
+        if (shapesToPaths) {
             let shapes = svg.querySelectorAll('polygon, polyline, line, rect, circle, ellipse');
-            shapes.forEach(shape=>{
+            shapes.forEach(shape => {
                 let path = shapeElToPath(shape);
                 shape.replaceWith(path);
             });
@@ -4730,7 +4878,7 @@ function svgPathSimplify(input = '', {
     // combinded path data for SVGs with mergePaths enabled
     let pathData_merged = [];
 
-    for(let i=0, l=paths.length; l&&i<l; i++ ){
+    for (let i = 0, l = paths.length; l && i < l; i++) {
 
         let path = paths[i];
         let { d, el } = path;
@@ -4740,7 +4888,7 @@ function svgPathSimplify(input = '', {
         // count commands for evaluation
         let comCount = pathData.length;
 
-        if(removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
+        if (removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
 
         /**
          * get sub paths
@@ -4769,7 +4917,7 @@ function svgPathSimplify(input = '', {
             if (optimizeOrder) pathDataSub = pathDataToTopLeft(pathDataSub);
 
             // Preprocessing: remove colinear - ignore flat beziers (removed later)
-            if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, {tolerance, flatBezierToLinetos:false});
+            if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, { tolerance, flatBezierToLinetos: false });
 
             // analyze pathdata to add info about signicant properties such as extremes, corners
             let pathDataPlus = analyzePathData(pathDataSub);
@@ -4779,9 +4927,9 @@ function svgPathSimplify(input = '', {
             pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
             // refine extremes
-            if(refineExtremes){
+            if (refineExtremes) {
                 let thresholdEx = (bb.width + bb.height) / 2 * 0.05;
-                pathData = refineAdjacentExtremes(pathData, {threshold:thresholdEx, tolerance});
+                pathData = refineAdjacentExtremes(pathData, { threshold: thresholdEx, tolerance });
             }
 
             // cubic to arcs
@@ -4789,24 +4937,37 @@ function svgPathSimplify(input = '', {
 
                 let thresh = 1;
 
-                pathData.forEach((com, c) => {
+                for(let c=0, l=pathData.length; c<l; c++){
+                    let com = pathData[c];
                     let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                     if (type === 'C') {
 
                         let comA = cubicCommandToArc(p0, cp1, cp2, p, thresh);
                         if (comA.isArc) pathData[c] = comA.com;
-
                     }
-                });
+                }
 
                 // combine adjacent cubics
                 pathData = combineArcs(pathData);
 
             }
 
+            // post processing: remove flat beziers
+            if (removeColinear && flatBezierToLinetos) {
+                pathData = pathDataRemoveColinear(pathData, { tolerance, flatBezierToLinetos });
+            }
+
+            // refine corners
+            if(refineCorners){
+                let threshold = (bb.width + bb.height) / 2 * 0.1;
+                pathData = refineRoundedCorners(pathData, { threshold, tolerance });
+
+            }
+
             // simplify to quadratics
             if (revertToQuadratics) {
-                pathData.forEach((com, c) => {
+                for(let c=0, l=pathData.length; c<l; c++){
+                    let com = pathData[c];
                     let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                     if (type === 'C') {
 
@@ -4819,12 +4980,7 @@ function svgPathSimplify(input = '', {
                             pathData[c] = comQ;
                         }
                     }
-                });
-            }
-
-            // post processing: remove flat beziers
-            if (removeColinear && flatBezierToLinetos) {
-                pathData = pathDataRemoveColinear(pathData, {tolerance, flatBezierToLinetos});
+                }
             }
 
             // optimize close path
@@ -4855,6 +5011,7 @@ function svgPathSimplify(input = '', {
             pathData = convertPathData(pathData, pathOptions);
 
             // remove zero-length segments introduced by rounding
+            pathData = removeZeroLengthLinetos(pathData);
 
             // compare command count
             let comCountS = pathData.length;
@@ -4890,7 +5047,6 @@ function svgPathSimplify(input = '', {
             let pathData = convertPathData(pathData_merged, pathOptions);
 
             // remove zero-length segments introduced by rounding
-
             pathData = removeZeroLengthLinetos(pathData);
 
             let dOpt = pathDataToD(pathData, minifyD);

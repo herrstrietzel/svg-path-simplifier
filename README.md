@@ -33,9 +33,6 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
 * split segments at extremes – only useful for manual editing
 * optimize either path data strings or SVG markup code
 
-### Limitations: What it's not
-This lib's focus is on path data optimizations. While it also provides some basic cleanup options for entire SVG documents (e.g removal of hidden elements or path merging) – if you need a full blown document optimization better opt for [SVGO](https://github.com/svg/svgo).  
-
 
 ## Usage 
 
@@ -211,6 +208,25 @@ You can easily test this library via the [simplify webapp](https://herrstrietzel
 * [simple setup esm](./demo/simple-esm.html)  
 
 
+
+## Limitations 
+### Optimization of complete SVG files
+This lib's focus is on path data optimizations. While it also provides some basic cleanup options for entire SVG documents (e.g removal of hidden elements or path merging) – if you need a full blown document optimization better opt for [SVGO](https://github.com/svg/svgo) or the GUI [SVGOMG](https://svgomg.net). 
+SVGO comes with a plethora of options to remove document overhead like unused definitions like gradients, defs, styles etc.  
+
+### »Natural« limitations of vector/curve simplification
+Unlike raster images we can't reduce information in vector graphics in a predictable fashion. While we *can* apply brute force and remove points – it won't work:
+
+We always need to **respect the complexity of a graphic**: if we remove too many segments – we significantly change the appearance.  
+
+**Scaling** down can only help if we're dealing with an either huge or microscopic coordinate space: large numbers vs. small ones requiring too many floating point decimals. For instance scaling down a 100x100 viewBox to 24x24 won't significantly reduce the ultimate file size or even result in larger markup sizes due too more floating point values.
+
+### The sad truth about »gigantic« SVG files  
+SVGs > 1 MB are most of the time not salvagable. At least if they contain 10K+ of path data. Quite often their size comes from the complexity itself not from overhead or simplifyable geometries. This is especially true for many CAD exports containing a rubbish structure with way too many separate line elements that can't easily be combined to curves.   
+
+**Recommendation:** If a simplification still doesn't result in a significantly smaller file size or better rendering – a Hi-res raster image is often the only reasonable workaround. Bear in mind, most  rendering pipelines for raster images are more optimized than vector renderers (e.g often benefitting from gpu accelleration) so a 1MB raster image (png, webp, jpeg etc) won't let your renderer scream in agony – a 1MB SVG does!
+
+
 ## Changelog, Updates and rollback
 ### Changelog
 ... not much to say at this point
@@ -240,6 +256,7 @@ You can also post in the [discussions](https://github.com/herrstrietzel/svg-path
 
 
 ## Credits
+* [Yqnn](https://github.com/Yqnn?tab=repositories) for creating the indispensible tool [»svg-path-editor«](https://yqnn.github.io/svg-path-editor) – a must-bookmark for visual SVG debugging!
 * [Vitaly Puzrin](https://github.com/puzrin) for [svgpath library](https://github.com/fontello/svgpath) providing for instance a great and customizable [arc-to-cubic approximation](https://github.com/fontello/svgpath/blob/master/lib/a2c.js) – the base for the more accurate arc-to-cubic approximations
 * [Jarek Foksa](https://github.com/jarek-foksa) for developping the great [getPathData() polyfill](https://github.com/jarek-foksa/path-data-polyfill) – probably the most productive contributor to the ["new" W3C SVGPathData interface draft](https://svgwg.org/specs/paths/#InterfaceSVGPathData)
 * obviously, [Dmitry Baranovskiy](https://github.com/dmitrybaranovskiy) – a lot of these helper functions originate either from Raphaël or snap.svg – or are at least heavily inspired by some helpers from these libraries

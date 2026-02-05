@@ -21,6 +21,7 @@ export function pathDataRemoveColinear(pathData, {
         //let comPrev = pathData[c - 1];
         let com = pathData[c];
         let comN = pathData[c + 1] || pathData[l - 1];
+        //let p1 = comN.type.toLowerCase() === 'z' ? M : { x: comN.values[comN.values.length - 2], y: comN.values[comN.values.length - 1] }
         let p1 = comN.type.toLowerCase() === 'z' ? M : { x: comN.values[comN.values.length - 2], y: comN.values[comN.values.length - 1] }
 
         let { type, values } = com;
@@ -32,8 +33,9 @@ export function pathDataRemoveColinear(pathData, {
         //let distSquare0 = getSquareDistance(p0, p)
         //let distSquare1 = getSquareDistance(p, p1)
         let distSquare = getSquareDistance(p0, p1)
+        //distSquare = (distSquare0+distSquare1) * 0.5
 
-        let distMax = distSquare / 1000 * tolerance
+        let distMax = distSquare ? distSquare / 333 * tolerance : 0
 
         let isFlat = area < distMax;
         let isFlatBez = false;
@@ -58,18 +60,30 @@ export function pathDataRemoveColinear(pathData, {
             }
         }
 
-        // update end point
-        p0 = p;
 
         // colinear – exclude arcs (as always =) as semicircles won't have an area
         //&& comN.type==='L'
         if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) ) {
-            //console.log(area,distMax );
+            
+            /*
+            console.log(area, distMax );
             //if(comN.type!=='L' ){}
 
-            //renderPoint(markers, p, 'orange', '1%', '0.5')
+            if(p0.x === p.x && p0.y === p.y){
+
+            }
+
+            renderPoint(markers, p0, 'blue', '1.5%', '1')
+            renderPoint(markers, p, 'red', '1%', '1')
+            renderPoint(markers, p1, 'cyan', '0.5%', '1')
+            */
+
+
             continue;
         }
+
+        // update end point
+        p0 = p;
 
 
         if (type === 'M') {

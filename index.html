@@ -13,21 +13,29 @@
     <meta name="theme-color" content="#ffffff">
 
     <!-- 
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.css">
-        <script src="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.js" defer></script>
     
-        <link rel="stylesheet" href="//localhost/___git/enhance-inputs/enhance-inputs/dist/enhanceInputs.css">
+    <link rel="stylesheet" href="//localhost/___git/enhance-inputs/enhance-inputs/dist/enhanceInputs.css">
     <script src="//localhost/___git/enhance-inputs/enhance-inputs/dist/enhanceInputs.js" defer></script>
-
-
-
-    -->
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.css">
     <script src="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.js" defer></script>
 
-    <script src="demo/lib/elzoomo/elzoomo.js" defer></script>
+    <link rel="stylesheet" href="//localhost/___git/enhance-inputs/enhance-inputs/dist/enhanceInputs.css">
+    <script src="//localhost/___git/enhance-inputs/enhance-inputs/dist/enhanceInputs.js" defer></script>
 
+    <script src="https://cdn.jsdelivr.net/npm/path-data-polyfill@1.0.10/path-data-polyfill.min.js"></script>
+
+
+    -->
+
+    <!-- UI helpers -->
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/enhance-inputs@latest/dist/enhanceInputs.min.js" defer></script>
+
+
+
+    <script src="demo/lib/elzoomo/elzoomo.js" defer></script>
 
     <script src="dist/svg-path-simplify.js" defer></script>
 
@@ -49,8 +57,11 @@
 
             <!--toolbars-->
             <aside class="aside aside-1 hgh-100 aside scrollbar scroll-content-ld scroll-track   pdd-1em pos-rlt">
+                <p class="txt-cnt --mrg-0-5em --mrg-btt">
+                    <img class="icn-logo dsp-inl-blc fnt-siz-3em" src="./favicon.svg">
+                </p>
 
-                <h1>Simplify pathdata</h1>
+                <h1 class="txt-cnt">Simplify pathdata</h1>
                 <p>Enter your SVG pathData or complete file markup.</p>
 
                 <p><input type="file" class="dsp-non --btn-neg" id="inputFile" name="svgFile" value="upload"
@@ -59,15 +70,16 @@
 
                 <p class="--btn-neg" data-ui="reset"></p>
 
+
                 <p>
                     <label>
-                        <select name="inputSamples" id="inputSamples" data-options="samples"></select>
+                        <select name="samples" id="inputSamples" data-options="samples"></select>
                     </label>
                 </p>
 
 
                 <label>Input SVG
-                    <textarea name="dInput" id="inputSvg" data-tools="size upload copy">m71.72 20.83 0 0c-1.76 .59-3.69 .97-5.79 1.15s-4.68 .26-7.73 .26c5.45 2.46 8.16 6.35 8.16 11.67 0 4.62-1.58 8.39-4.73 11.32s-7.46 4.39-12.9 4.39c-2.11 0-4.07-.3-5.88-.88-.71 .47-1.26 1.1-1.67 1.89s-.61 1.59-.61 2.41c0 2.52 2.02 3.77 6.05 3.77h7.37c3.1 0 5.85 .56 8.25 1.67s4.26 2.64 5.57 4.56 1.98 4.13 1.98 6.59c0 4.5-1.84 7.97-5.53 10.39s-9.07 3.65-16.14 3.65c-4.98 0-8.91-.52-11.81-1.54s-4.95-2.56-6.18-4.61-1.85-4.68-1.85-7.89h5.54 1.75c0 1.87 .35 3.34 1.05 4.43 .7 1.08 1.96 1.9 3.77 2.46s4.39 .83 7.73 .83c4.85 0 8.32-.6 10.39-1.8s3.12-3 3.12-5.4c0-2.16-.82-3.8-2.46-4.91s-3.92-1.67-6.85-1.67h-7.28c-3.92 0-6.89-.83-8.91-2.5s-3.02-3.76-3.02-6.27c0-1.53 .44-2.99 1.31-4.39s2.14-2.66 3.78-3.77c-2.69-1.41-4.67-3.15-5.92-5.23s-1.89-4.6-1.89-7.58c0-3.11 .77-5.89 2.32-8.34s3.69-4.38 6.41-5.75 5.75-2.06 9.08-2.06c3.63 .06 6.67-.08 9.13-.4s4.48-.76 6.1-1.31 3.58-1.36 5.92-2.42l0.88 2.71 .88 2.7 .61 1.87zm-30.58 5.49c-1.67 1.9-2.51 4.4-2.51 7.5 0 3.16 .85 5.69 2.55 7.59s4.1 2.85 7.2 2.85 5.57-.92 7.24-2.76 2.5-4.43 2.5-7.76c0-6.85-3.31-10.27-9.92-10.27-3.04 0-5.4 .95-7.06 2.85z
+                    <textarea class="inputSvg code" name="dInput" id="inputSvg" data-tools="size upload copy">m71.72 20.83 0 0c-1.76 .59-3.69 .97-5.79 1.15s-4.68 .26-7.73 .26c5.45 2.46 8.16 6.35 8.16 11.67 0 4.62-1.58 8.39-4.73 11.32s-7.46 4.39-12.9 4.39c-2.11 0-4.07-.3-5.88-.88-.71 .47-1.26 1.1-1.67 1.89s-.61 1.59-.61 2.41c0 2.52 2.02 3.77 6.05 3.77h7.37c3.1 0 5.85 .56 8.25 1.67s4.26 2.64 5.57 4.56 1.98 4.13 1.98 6.59c0 4.5-1.84 7.97-5.53 10.39s-9.07 3.65-16.14 3.65c-4.98 0-8.91-.52-11.81-1.54s-4.95-2.56-6.18-4.61-1.85-4.68-1.85-7.89h5.54 1.75c0 1.87 .35 3.34 1.05 4.43 .7 1.08 1.96 1.9 3.77 2.46s4.39 .83 7.73 .83c4.85 0 8.32-.6 10.39-1.8s3.12-3 3.12-5.4c0-2.16-.82-3.8-2.46-4.91s-3.92-1.67-6.85-1.67h-7.28c-3.92 0-6.89-.83-8.91-2.5s-3.02-3.76-3.02-6.27c0-1.53 .44-2.99 1.31-4.39s2.14-2.66 3.78-3.77c-2.69-1.41-4.67-3.15-5.92-5.23s-1.89-4.6-1.89-7.58c0-3.11 .77-5.89 2.32-8.34s3.69-4.38 6.41-5.75 5.75-2.06 9.08-2.06c3.63 .06 6.67-.08 9.13-.4s4.48-.76 6.1-1.31 3.58-1.36 5.92-2.42l0.88 2.71 .88 2.7 .61 1.87zm-30.58 5.49c-1.67 1.9-2.51 4.4-2.51 7.5 0 3.16 .85 5.69 2.55 7.59s4.1 2.85 7.2 2.85 5.57-.92 7.24-2.76 2.5-4.43 2.5-7.76c0-6.85-3.31-10.27-9.92-10.27-3.04 0-5.4 .95-7.06 2.85z
                     </textarea>
                 </label>
 
@@ -104,8 +116,10 @@
                     <label><input type="checkbox" name="keepInflections"
                             data-info="retain inflections e.g spine of an S shape">keepInflections</label>
 
-                    <label><input type="checkbox" name="extrapolateDominant"
-                            data-info="extrapolates dominant bezier segment – rather sloppy">extrapolateDominant</label>
+                    <!-- 
+                        <label><input type="checkbox" name="extrapolateDominant"
+                                data-info="extrapolates dominant bezier segment – rather sloppy">extrapolateDominant</label>
+                    -->
 
                     <label><input type="checkbox" name="revertToQuadratics"
                             data-info="Reverts cubic to quadratic Béziers if applicable" checked>revert
@@ -126,9 +140,8 @@
                             data-info="remove orphaned M commands not connecting to lines or curve segments"
                             checked>removeOrphanSubpaths</label>
                     <label><input type="checkbox" name="refineExtremes">refineExtremes</label>
+                    <label><input type="checkbox" name="refineCorners">refineCorners</label>
                     <label><input type="checkbox" name="addExtremes">addExtremes</label>
-
-
 
                 </p>
 
@@ -162,7 +175,7 @@
 
                 <p>
                     <label>Output SVG
-                        <textarea name="dOutput" id="outputSvg" data-tools="size copy"
+                        <textarea class="outputSvg code" name="dOutput" id="outputSvg" data-tools="size copy"
                             data-file="simple.svg"></textarea>
                     </label>
                 </p>
@@ -187,21 +200,47 @@
             </header>
 
             <footer class="footer pst-abs btt-0 lft-0 rgh-0 z-ind-1000">
-                <div class="footer-wrp dsp-flx alg-itm-cnt pdd-1em">
-                    <p id="commandInfo"></p>
+                <div class="footer-wrp --dsp-flx --alg-itm-cnt pdd-1em">
+                    <p class="pReport txt-rgh" id="pReport"></p>
 
-                    <p class="mrg-lft-aut">
-                        <button id="btnCopy" 
-                        class="btn-download btn-neg"
-                        data-icon="copy">Copy</button>
-    
-                        <a href="#" data-name="" 
-                        class="btn-download btn-neg"
-                        id="btnDownload"
-                        data-icon="arrow-down-tray" 
-                        download="simplified.svg"
-                        > Download SVG</a>
-                    </p>
+                    <div class="wrp-btns txt-rgh">
+
+                            <!-- Share -->
+                            <a href="#" class="btn a-non btn-download btn-neg" id="shareUrl" data-icon="link">Share</a>
+
+                            <!-- codepen -->
+                            <form action="https://codepen.io/pen/define" method="POST" target="_blank"
+                                class="form-codepen dsp-inl-blc">
+                                <input id="inputCodepen" type="hidden" value="" name="data" data-ignore="true">
+                                <button title="Edit in codepen" class="btn btnCodepen btn-download btn-neg" type="submit">
+                                    <span class="icn-wrp icn-wrp-codepen icn-wrp-left">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icn-svg" viewBox="0 0 24 24"
+                                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <path
+                                                d="M12 2l10 6.5v7l-10 6.5-10-6.5v-7zm0 20v-6.5m10-7l-10 7-10-7m0 7l10-7 10 7m-10-13.5v6.5" />
+                                        </svg>
+                                    </span> Codepen
+                                </button>
+                            </form>
+
+                            <!-- svg editor -->
+                            <a class="btn lnk-edit btn-download btn-neg" id="linkEdit" title="Edit in svg-path-editor"
+                                target="_blank" rel="noopener noreferrer" data-icon="pencil" href="">Edit</a>
+
+
+
+
+                            <!-- copy -->
+                            <button id="btnCopy" class="btn btn-download btn-neg" data-icon="copy">Copy</button>
+
+                            <!-- save -->
+                            <a href="#" data-name="" class="btn btn-download btn-neg" id="btnDownload"
+                                data-icon="arrow-down-tray" download="simplified.svg"> Download SVG</a>
+
+
+                    </div>
+
                 </div>
             </footer>
 

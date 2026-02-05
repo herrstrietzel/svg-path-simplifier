@@ -1,6 +1,7 @@
 //import { arcToBezier, quadratic2Cubic } from './convert.js';
 //import { getAngle, bezierhasExtreme, getDistance  } from "./geometry";
 import { pathDataToAbsoluteOrRelative, pathDataToLonghands, pathDataArcsToCubics, pathDataQuadraticToCubic } from './pathData_convert.js';
+import { pathDataToD } from './pathData_stringify.js';
 
 
 
@@ -15,10 +16,10 @@ export function normalizePathData(pathData = [],
         quadraticToCubic = false,
         arcToCubic = false,
         arcAccuracy = 2,
-    } = {},
 
-    {
+        // assume we need full normalization
         hasRelatives = true, hasShorthands = true, hasQuadratics = true, hasArcs = true, testTypes = false
+
     } = {}
 ) {
 
@@ -71,25 +72,30 @@ export function parsePathDataNormalized(d,
 ) {
 
 
+    // is already array
+    let isArray = Array.isArray(d);
 
-    //let t0=performance.now()
-    let pathDataObj = parsePathDataString(d);
-    //let t1=performance.now()
-    //console.log('parsing', t1-t0);
+    // normalize native pathData to regular array
+    let hasConstructor = isArray && typeof d[0] === 'object' && typeof d[0].constructor === 'function'
+    /*
+    if (hasConstructor) {
+        d = d.map(com => { return { type: com.type, values: com.values } })
+        console.log('hasConstructor', hasConstructor, (typeof d[0].constructor), d);
+    }
+    */
 
-    let { hasRelatives, hasShorthands, hasQuadratics, hasArcs } = pathDataObj;
-    let pathData = pathDataObj.pathData;
+    let pathDataObj = isArray ? d : parsePathDataString(d);
+
+
+    let { hasRelatives = true, hasShorthands = true, hasQuadratics = true, hasArcs = true } = pathDataObj;
+    let pathData = hasConstructor ? pathDataObj : pathDataObj.pathData;
 
     // normalize
-    //let t0=performance.now()
     pathData = normalizePathData(pathData,
-        { toAbsolute, toLonghands, quadraticToCubic, arcToCubic, arcAccuracy },
-        //{test:true}
-        { hasRelatives, hasShorthands, hasQuadratics, hasArcs }
+        { toAbsolute, toLonghands, quadraticToCubic, arcToCubic, arcAccuracy,
+        hasRelatives, hasShorthands, hasQuadratics, hasArcs 
+        },
     )
-    //let t1=performance.now()
-    //console.log('normalizePathData', t1-t0);
-
 
     return pathData;
 }
@@ -459,7 +465,8 @@ export function parsePathDataString(d, debug = true) {
         if (debug === 'log') {
             console.log(feedback);
         } else {
-            throw new Error(feedback)
+            //throw new Error(feedback)
+            console.warn(feedback)
         }
     }
 

@@ -26,20 +26,24 @@ export function removeZeroLengthLinetos(pathData) {
 
     for (let c = 1, l = pathData.length; c < l; c++) {
         let com = pathData[c];
+        let comPrev = pathData[c-1] 
+        let comNext = pathData[c+1] || null
         let { type, values } = com;
 
+        // zero length segments are simetimes used in icons for dots
+        let isDot = comPrev.type.toLowerCase() ==='m' && !comNext;
+
         let valsLen = values.length;
-        //let valsL = values.slice(-2);
-        //p = { x: valsL[0], y: valsL[1] };
         p = { x: values[valsLen-2], y: values[valsLen-1] };
 
         // skip lineto
-        if (type === 'L' && p.x === p0.x && p.y === p0.y) {
+        if (!isDot && type === 'L' && p.x === p0.x && p.y === p0.y) {
             continue
         }
 
+
         // skip minified zero length
-        if (type === 'l' || type === 'v' || type === 'h') {
+        if (!isDot && (type === 'l' || type === 'v' || type === 'h')) {
             let noLength = type === 'l' ? (values.join('') === '00') : values[0] === 0;
             if(noLength) continue
         } 

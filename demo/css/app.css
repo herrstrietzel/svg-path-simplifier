@@ -87,6 +87,14 @@ body {
 
 }
 
+/** logo **/
+.icn-logo {
+    font-size: 2.5em;
+    height: 1em;
+    margin-top: 0.5em;
+    margin-bottom: -0.75em;
+}
+
 
 /**
 * hide nav
@@ -444,7 +452,20 @@ canvas {
         left: 1em;
         top: 2em;
         --color-text: var(--color-focus);
-        color:var(--color-focus);
+        color: var(--color-focus);
     }
 
 }
+
+.pReport {
+    line-height: 1em;
+}
+
+
+.wrp-btns .btn {
+    margin:0;
+    margin-left:0.3em;
+    margin-bottom:0.5em;
+    }
+
+

@@ -20,6 +20,7 @@ import { detectAccuracy } from './svgii/rounding';
 import { refineAdjacentExtremes } from './svgii/pathData_simplify_refineExtremes';
 import { cleanUpSVG, removeEmptySVGEls, stringifySVG } from './svgii/svg_cleanup';
 import { renderPoint } from './svgii/visualize';
+import { refineRoundedCorners } from './svgii/pathData_simplify_refineCorners';
 
 export function svgPathSimplify(input = '', {
 
@@ -47,6 +48,8 @@ export function svgPathSimplify(input = '', {
     revertToQuadratics = true,
 
     refineExtremes = true,
+    refineCorners = false, 
+
     keepExtremes = true,
     keepCorners = true,
     extrapolateDominant = true,
@@ -84,6 +87,7 @@ export function svgPathSimplify(input = '', {
     let report = {};
     let d = '';
     let mode = inputType === 'svgMarkup' ? 1 : 0;
+    //console.log(inputType);
 
     let paths = []
 
@@ -96,6 +100,7 @@ export function svgPathSimplify(input = '', {
     //svgSize = new Blob([input]).size;
     svgSize = input.length;
 
+
     // mode:0 – single path
     if (!mode) {
         if (inputType === 'pathDataString') {
@@ -103,6 +108,16 @@ export function svgPathSimplify(input = '', {
         } else if (inputType === 'polyString') {
             d = 'M' + input
         }
+        else if (inputType === 'pathData') {
+            d = input;
+
+            // stringify to compare lengths
+            //let dStr = pathDataToD(d);
+            let dStr = d.map(com=>{return `${com.type} ${com.values.join(' ')}`}).join(' ') ;
+            svgSize = dStr.length;
+
+        }
+
         paths.push({ d, el: null })
     }
     // mode:1 – process complete svg DOM
@@ -112,9 +127,9 @@ export function svgPathSimplify(input = '', {
         svg = cleanUpSVG(input, { returnDom, removeHidden, removeUnused }
         );
 
-        if(shapesToPaths){
+        if (shapesToPaths) {
             let shapes = svg.querySelectorAll('polygon, polyline, line, rect, circle, ellipse');
-            shapes.forEach(shape=>{
+            shapes.forEach(shape => {
                 let path = shapeElToPath(shape);
                 shape.replaceWith(path)
             })
@@ -126,7 +141,6 @@ export function svgPathSimplify(input = '', {
             paths.push({ d: path.getAttribute('d'), el: path })
         })
     }
-
 
 
 
@@ -145,7 +159,7 @@ export function svgPathSimplify(input = '', {
     // combinded path data for SVGs with mergePaths enabled
     let pathData_merged = [];
 
-    for(let i=0, l=paths.length; l&&i<l; i++ ){
+    for (let i = 0, l = paths.length; l && i < l; i++) {
 
         let path = paths[i];
         let { d, el } = path;
@@ -156,7 +170,7 @@ export function svgPathSimplify(input = '', {
         let comCount = pathData.length
 
 
-        if(removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
+        if (removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
 
         /**
          * get sub paths
@@ -180,7 +194,6 @@ export function svgPathSimplify(input = '', {
 
             // remove zero length linetos
             if (removeColinear || removeZeroLength) pathDataSub = removeZeroLengthLinetos(pathDataSub)
-
             //console.log(removeColinear, removeZeroLength);
 
 
@@ -195,7 +208,7 @@ export function svgPathSimplify(input = '', {
 
 
             // Preprocessing: remove colinear - ignore flat beziers (removed later)
-            if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, {tolerance, flatBezierToLinetos:false});
+            if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, { tolerance, flatBezierToLinetos: false });
 
 
             // analyze pathdata to add info about signicant properties such as extremes, corners
@@ -207,9 +220,9 @@ export function svgPathSimplify(input = '', {
             pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
             // refine extremes
-            if(refineExtremes){
+            if (refineExtremes) {
                 let thresholdEx = (bb.width + bb.height) / 2 * 0.05
-                pathData = refineAdjacentExtremes(pathData, {threshold:thresholdEx, tolerance})
+                pathData = refineAdjacentExtremes(pathData, { threshold: thresholdEx, tolerance })
             }
 
 
@@ -218,15 +231,15 @@ export function svgPathSimplify(input = '', {
 
                 let thresh = 1;
 
-                pathData.forEach((com, c) => {
+                for(let c=0, l=pathData.length; c<l; c++){
+                    let com = pathData[c]
                     let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                     if (type === 'C') {
                         //console.log(com);
                         let comA = cubicCommandToArc(p0, cp1, cp2, p, thresh)
                         if (comA.isArc) pathData[c] = comA.com;
-                        //if (comQ.type === 'Q') pathDataN[c] = comQ
                     }
-                })
+                }
 
                 // combine adjacent cubics
                 pathData = combineArcs(pathData)
@@ -234,10 +247,25 @@ export function svgPathSimplify(input = '', {
             }
 
 
+            // post processing: remove flat beziers
+            if (removeColinear && flatBezierToLinetos) {
+                pathData = pathDataRemoveColinear(pathData, { tolerance, flatBezierToLinetos });
+            }
+
+
+            // refine corners
+            if(refineCorners){
+                let threshold = (bb.width + bb.height) / 2 * 0.1
+                pathData = refineRoundedCorners(pathData, { threshold, tolerance })
+                //console.log(refineCorners);
+            }
+
+
 
             // simplify to quadratics
             if (revertToQuadratics) {
-                pathData.forEach((com, c) => {
+                for(let c=0, l=pathData.length; c<l; c++){
+                    let com = pathData[c]
                     let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                     if (type === 'C') {
                         //console.log(com);
@@ -250,13 +278,7 @@ export function svgPathSimplify(input = '', {
                             pathData[c] = comQ
                         }
                     }
-                })
-            }
-
-
-            // post processing: remove flat beziers
-            if (removeColinear && flatBezierToLinetos) {
-                pathData = pathDataRemoveColinear(pathData, {tolerance, flatBezierToLinetos});
+                }
             }
 
 
@@ -295,7 +317,7 @@ export function svgPathSimplify(input = '', {
             pathData = convertPathData(pathData, pathOptions)
 
             // remove zero-length segments introduced by rounding
-            //pathData = removeZeroLengthLinetos(pathData);
+            pathData = removeZeroLengthLinetos(pathData);
 
             // compare command count
             let comCountS = pathData.length
@@ -332,9 +354,7 @@ export function svgPathSimplify(input = '', {
             let pathData = convertPathData(pathData_merged, pathOptions)
 
             // remove zero-length segments introduced by rounding
-            //pathData = removeZeroLengthLinetos_post(pathData);
             pathData = removeZeroLengthLinetos(pathData);
-
 
             let dOpt = pathDataToD(pathData, minifyD)
 
