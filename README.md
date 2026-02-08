@@ -34,6 +34,34 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
 * optimize either path data strings or SVG markup code
 
 
+## TOC
+* [Usage](#usage)
+  + [Browser](#browser)
+    - [Example 1: parse and simplify (using defaults)](#example-1-parse-and-simplify-using-defaults)
+    - [ESM version](#esm-version)
+  + [node.js](#nodejs)
+  + [API](#api)
+  + [Simplification parameters](#simplification-parameters)
+  + [Output options](#output-options)
+  + [SVG output optimizations](#svg-output-optimizations)
+  + [SVG input normalization](#svg-input-normalization)
+* [Demos](#demos)
+  + [Web app](#web-app)
+  + [Demo files](#demo-files)
+* [Limitations](#limitations)
+  + [Optimization of complete SVG files](#optimization-of-complete-svg-files)
+  + [»Natural« limitations of vector/curve simplification](#natural-limitations-of-vector-curve-simplification)
+  + [The sad truth about »gigantic« SVG files](#the-sad-truth-about-gigantic-svg-files)
+* [Changelog, Updates and rollback](#changelog-updates-and-rollback)
+  + [Changelog](#changelog)
+  + [Rollback](#rollback)
+* [Bug reporting](#bug-reporting)
+* [Related  libraries](#related-libraries)
+* [Other SVG related projects](#other-svg-related-projects)
+* [Credits](#credits)
+
+
+
 ## Usage 
 
 ### Browser 
@@ -84,57 +112,24 @@ Install module via npm:
 ```
 npm install svg-path-simplify
 ```
-Import:  
+
+To simplify entire SVG documents in node.js we need to emulate the browsers DOM methods `DOMParser` and `XMLSerializer`. I opted for [linkedom](https://github.com/WebReflection/linkedom). Just make sure to import the `svg-path-simplify/node` module. It will load linkedom's methods `DOMParser` and add a polyfill for `XMLSerializer`
+
 ``` 
-import { svgPathSimplify  } from 'svg-path-simplify';
+/**
+ * load node polyfills for DOM parsing
+ * loads linkedom npm module for DOM parsing and emulation 
+ */
+import 'svg-path-simplify/node';
 
 // use it as in the above examples
+import { svgPathSimplify  } from 'svg-path-simplify';
+
 let pathDataString =  `M 57.13 15.5c 13.28 0 24.53 8.67 28.42 20.65c 0.94 2.91 1.45 6.01 1.45 9.23`;
 let pathDataOpt = svgPathSimplify(pathDataString);
-
 ```
 
-### API
-
-``` 
-let options = {}
-let output = svgPathSimplify(input, options);
-```
-
-The first parameter is the SVG input:  
-* a path data string – as used in SVG `<path>` element's  `d` attribute
-* a polygon string – as used in SVG `<polygon>` element's  `points` attribute
-* an entire `<svg>` markup
-
-While svg-path-simplify aims at a convenient config-free usage you can tweak the simplification and output via these options passed as an object.    
-
-| parameter | effect | type | default |
-| -- | -- | -- | -- |
-| simplifyBezier | main Bézier simplification. When disabled you get the common optimization similar to SVGO (rounding, to all relative and shorthand conversions)  | Boolean | true |
-| getObject | whether to return the SVG/pathdata markup directly or a detailed object (containing more info)  | Boolean | true |
-| tolerance | increase or decrease tolerance: higher values allow more distortions, lower ones more shape fidelity | Number | 1 |
-| optimizeOrder | reorders commands to get more adjacent simplification candidates. Improves optimization efficiency | Boolean | true |
-| removeColinear | removes unnecessary zero-length or colinear lineto commands | Boolean | true |
-| flatBezierToLinetos | replaces flat Béziers with linetos which also can be stripped via previous colinear removal | Boolean | true |
-| revertToQuadratics | replaces cubic Béziers with quadratic (more compact) ones when applicable | Boolean | true |
-| keepExtremes | skips simplification accross x/y extrema – improves shape fidelity | Boolean | true |
-| keepCorners | skips simplification corners – improves shape fidelity | Boolean | true |
-| extrapolateDominant | tries to extrapolate adjacent curves based on dominant larger segment. Effective but adds computational load. Disable it for better performance  | Boolean | true |
-| keepInflections | retains commands introducing direction changes – adds complexity but may help for editing in a graphic application | Boolean | false |
-| addExtremes | adds commands at x/y extrema – adds complexity but may help for editing in a graphic application | Boolean | false |
-| autoAccuracy | calculates a suitable floating point precision for coordinate rounding. Usually rather conservative – decreasing by one decimal should work without significant distortions | Boolean | true |
-| decimals | manual floating point rounding precision – overriden when `autoAccuracy` is enabled | Number | 3 |
-| minifyD | path data microoptimization: removes recurring command type tokens, whitespace and leading zeroes: 0: maximum optimization; 1: "verbose" dont't omit command type tokes; 2: "beautify" separate each command with new lines (e.g for educational purposes) | Number | 0 |
-| quadraticToCubic | converts all quadratic Béziers to cubics – recommended for efficiency | Boolean | true |
-| toRelative | converts all commands to relative – reduces file size | Boolean | true |
-| toShorthands | converts all commands to shorthand when applicable – reduces file size | Boolean | true |
-| arcToCubic | converts elliptic arc `A` commands to cubic approximations – not recommended | Boolean | false |
-| removeHidden | removes hidden elements for SVG inputs | Boolean | true |
-| mergePaths | concatenates paths into single one – does not respect individual styles! | Boolean | false |
-
-
-
-### Example 2: Apply options  
+#### Example 2: Apply options  
 The following example would return a detailed object containing the stringified "normalized" pathdata (all absolute and "longhand" command notation). 
 
 ``` 
@@ -201,9 +196,69 @@ Z
 */
 ```
 
-## Demos
-You can easily test this library via the [simplify webapp](https://herrstrietzel.github.io/svg-path-simplify/) or by checking the demo folder. 
 
+
+### API
+
+``` 
+let options = {}
+let output = svgPathSimplify(input, options);
+```
+
+The first parameter is the SVG input:  
+* a path data string – as used in SVG `<path>` element's  `d` attribute
+* a polygon string – as used in SVG `<polygon>` element's  `points` attribute
+* an entire `<svg>` markup
+
+While svg-path-simplify aims at a convenient config-free usage you can tweak the simplification and output via these options passed as an object.    
+
+### Simplification parameters
+These params control shich simplifications are applied. The default settings aim at a safe or balanced performance-to-minification ratio. However if your main goal is to get the most compact result you can enable additional options which also require more processing time.
+| parameter | effect | type | default |
+| -- | -- | -- | -- |
+| simplifyBezier | main Bézier simplification. When disabled you get the common optimization similar to SVGO (rounding, to all relative and shorthand conversions)  | Boolean | true |
+| tolerance | increase or decrease tolerance: higher values allow more distortions, lower ones more shape fidelity | Number | 1 |
+| optimizeOrder | reorders commands to get more adjacent simplification candidates. Improves optimization efficiency | Boolean | true |
+| removeColinear | removes unnecessary zero-length or colinear lineto commands | Boolean | true |
+| flatBezierToLinetos | replaces flat Béziers with linetos which also can be stripped via previous colinear removal | Boolean | true |
+| revertToQuadratics | replaces cubic Béziers with quadratic (more compact) ones when applicable | Boolean | true |
+| keepExtremes | skips simplification accross x/y extrema – improves shape fidelity | Boolean | true |
+| keepCorners | skips simplification corners – improves shape fidelity | Boolean | true |
+| keepInflections | retains commands introducing direction changes – adds complexity but may help for editing in a graphic application | Boolean | false |
+| addExtremes | adds commands at x/y extrema – adds complexity but may help for editing in a graphic application | Boolean | false |
+
+### Output options
+
+| parameter | effect | type | default |
+| -- | -- | -- | -- |
+| getObject | whether to return the SVG/pathdata markup directly or a detailed object (containing more info)  | Boolean | true |
+
+
+### SVG output optimizations
+| parameter | effect | type | default |
+| -- | -- | -- | -- |
+| autoAccuracy | calculates a suitable floating point precision for coordinate rounding. Usually rather conservative – decreasing by one decimal should work without significant distortions | Boolean | true |
+| decimals | manual floating point rounding precision – overriden when `autoAccuracy` is enabled | Number | 3 |
+| minifyD | path data microoptimization: removes recurring command type tokens, whitespace and leading zeroes: 0: maximum optimization; 1: "verbose" dont't omit command type tokes; 2: "beautify" separate each command with new lines (e.g for educational purposes) | Number | 0 |
+| toRelative | converts all commands to relative – reduces file size | Boolean | true |
+| toShorthands | converts all commands to shorthand when applicable – reduces file size | Boolean | true |
+
+
+### SVG input normalization
+| parameter | effect | type | default |
+| -- | -- | -- | -- |
+| quadraticToCubic | converts all quadratic Béziers to cubics – recommended for efficiency | Boolean | true |
+| arcToCubic | converts elliptic arc `A` commands to cubic approximations – not recommended | Boolean | false |
+| removeHidden | removes hidden elements for SVG inputs | Boolean | true |
+| mergePaths | concatenates paths into single one – does not respect individual styles! | Boolean | false |
+
+
+
+## Demos
+### Web app
+You can easily test this library via the [**webapp**](https://herrstrietzel.github.io/svg-path-simplify/) or by checking the demo folder. 
+
+### Demo files
 * [simple setup IIFE](./demo/simple-iife.html)
 * [simple setup esm](./demo/simple-esm.html)  
 
@@ -229,7 +284,7 @@ SVGs > 1 MB are most of the time not salvagable. At least if they contain 10K+ o
 
 ## Changelog, Updates and rollback
 ### Changelog
-... not much to say at this point
+* 0.1.0 fixed node support for complete svg files
 
 ### Rollback
 If you encounter any issues with the recent versions you can rollback to a previous version.  
