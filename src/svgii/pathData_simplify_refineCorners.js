@@ -1,4 +1,4 @@
-import { checkLineIntersection, getDistAv, interpolate, pointAtT } from "./geometry";
+import { checkLineIntersection, getDistAv, getSquareDistance, interpolate, pointAtT } from "./geometry";
 import { getPolygonArea } from "./geometry_area";
 import { commandIsFlat } from "./geometry_flatness";
 import { renderPoint } from "./visualize";
@@ -8,12 +8,20 @@ export function refineRoundedCorners(pathData, {
     tolerance = 1
 } = {}) {
 
+
+    // min size threshold for corners
+    threshold *= tolerance;
+
     let l = pathData.length;
 
     // add fist command
     let pathDataN = [pathData[0]]
 
     let isClosed = pathData[l - 1].type.toLowerCase() === 'z';
+    let zIsLineto = isClosed ?
+    (pathData[l-1].p.x === pathData[0].p0.x && pathData[l-1].p.y === pathData[0].p0.y)
+     : false ;
+
     let lastOff = isClosed ? 2 : 1;
 
     let comLast = pathData[l - lastOff];
@@ -24,7 +32,9 @@ export function refineRoundedCorners(pathData, {
 
     //console.log('lastIsLine', lastIsLine, 'firstIsLine', firstIsLine, 'lastIsBez', lastIsBez, 'firstIsBez', firstIsBez, 'isClosed', isClosed, 'comLast1', comLast1);
 
-    let normalizeClose = isClosed && firstIsBez;
+    let normalizeClose = isClosed && firstIsBez && (lastIsLine || zIsLineto);
+    let adjustStart = false
+    //normalizeClose = false
     //console.log('normalizeClose', normalizeClose);
 
     // normalize closepath to lineto
@@ -42,9 +52,8 @@ export function refineRoundedCorners(pathData, {
         // search small cubic segments enclosed by linetos
         if ((type === 'L' && comN && comN.type === 'C') ||
             (type === 'C' && comN && comN.type === 'L')
-
         ) {
-            let comL0 = com;
+            let comL0 = type==='L' ? com : null;
             let comL1 = null;
             let comBez = [];
             let offset = 0;
@@ -54,7 +63,12 @@ export function refineRoundedCorners(pathData, {
                 comBez = [pathData[1]]
                 comL0 = pathData[l - 1]
                 comL1 = comN
-                //renderPoint(markers, com.p, 'orange')
+                //renderPoint(markers, com.p, 'purple')
+            }
+
+            if(!comL0) {
+                pathDataN.push(com)
+                continue
             }
 
             // closing corner to start
@@ -93,49 +107,50 @@ export function refineRoundedCorners(pathData, {
                 // check concaveness by area sign change
                 let area1 = getPolygonArea([comL0.p0, comL0.p, comL1.p0, comL1.p], false)
                 let area2 = getPolygonArea([comBez[0].p0, comBez[0].cp1, comBez[0].cp2, comBez[0].p], false)
+                //let isFlatBezier = area2 < getSquareDistance(comL0.p, comL1.p)*0.001
 
                 let signChange = (area1 < 0 && area2 > 0) || (area1 > 0 && area2 < 0)
 
-                if (comBez && !signChange && len3 < threshold && len1 > len3 && len2 > len3) {
+                // exclude mid bezier segments that are larger than surrounding linetos
+                let bezThresh = len3*0.5 * tolerance
+                let isSmall = bezThresh < len1 && bezThresh < len2 ;
 
-                    let ptQ = checkLineIntersection(comL0.p0, comL0.p, comL1.p0, comL1.p, false)
-                    if (ptQ) {
+                //len1 > len3 && len2 > len3
+                if (comBez.length && !signChange &&  isSmall ) {
 
-                        /*
-                        let dist1 = getDistAv(ptQ, comL0.p)
-                        let dist2 = getDistAv(ptQ, comL1.p0)
-                        let diff = Math.abs(dist1-dist2)
-                        let rat =  diff/Math.max(dist1, dist2)
-                        console.log('rat', rat);
-                        */
+                    let isFlatBezier = Math.abs(area2) <= getSquareDistance(comBez[0].p0, comBez[0].p)*0.005
+                    let ptQ = !isFlatBezier ? checkLineIntersection(comL0.p0, comL0.p, comL1.p0, comL1.p, false) : null
 
-                        /*
-                        // adjust curve start and end to meet original
-                        let t = 1
+                    if (!isFlatBezier && ptQ) {
 
-                        let p0_2 = pointAtT([ptQ, comL0.p], t)
-                        //renderPoint(markers, p0_2, 'cyan', '1%', '0.5')
-                        comL0.p = p0_2
-                        comL0.values = [p0_2.x, p0_2.y]
+                        // final check: mid point proximity
+                        let ptM = pointAtT([comL0.p, ptQ, comL1.p0], 0.5)
+                        //renderPoint(markers, ptM, 'red', '0.5%', '0.5')
 
-                        let p_2 = pointAtT([ptQ, comL1.p0], t)
-                        //renderPoint(markers, p_2, 'orange', '1%', '0.5')
-                        comL1.p0 = p_2
+                        let ptM_bez = comBez.length===1 ? pointAtT( [comBez[0].p0, comBez[0].cp1, comBez[0].cp2, comBez[0].p], 0.5 ) : comBez[0].p ;
 
-                        //renderPoint(markers, comL0.p, 'red', '1%', '0.5')
-                        //renderPoint(markers, ptQ, 'magenta')
-                        */
+                        let dist1 = getDistAv(ptM, ptM_bez)
 
+                        // not in tolerance – rturn original command
+                        if(dist1>len3){
+                            //renderPoint(markers, ptM_bez, 'cyan', '0.5%', '0.5')
+                            //renderPoint(markers, ptQ, 'magenta', '0.5%', '0.5')
+                            pathDataN.push(com);
+                        } else{
 
-                        let comQ = { type: 'Q', values: [ptQ.x, ptQ.y, comL1.p0.x, comL1.p0.y] }
-                        comQ.p0 = comL0.p;
-                        comQ.cp1 = ptQ;
-                        comQ.p = comL1.p0;
+                            //renderPoint(markers, ptQ, 'magenta', '0.5%', '0.5')
 
-                        // add quadratic command
-                        pathDataN.push(comL0, comQ);
-                        i += offset;
-                        continue;
+                            let comQ = { type: 'Q', values: [ptQ.x, ptQ.y, comL1.p0.x, comL1.p0.y] }
+                            comQ.p0 = comL0.p;
+                            comQ.cp1 = ptQ;
+                            comQ.p = comL1.p0;
+    
+                            // add quadratic command
+                            pathDataN.push(comL0, comQ);
+                            i += offset;
+                            continue;
+                        }
+
                     }
                 }
             }
@@ -150,10 +165,15 @@ export function refineRoundedCorners(pathData, {
 
     }
 
+
+
     // revert close path normalization
-    if (normalizeClose) {
+    if (normalizeClose  || (isClosed && pathDataN[pathDataN.length-1].type!=='Z') ) {
         pathDataN.push({ type: 'Z', values: [] })
     }
+
+
+    //console.log(pathDataN);
 
     return pathDataN;
 

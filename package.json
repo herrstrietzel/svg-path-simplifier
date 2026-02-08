@@ -1,49 +1,69 @@
 {
   "name": "svg-path-simplify",
-  "version": "0.0.9",
-  "main": "./dist/svg-path-simplify.node.js",
+  "version": "0.1.1",
+
+  "type": "module",
+
+  "main": "./dist/svg-path-simplify.node.cjs",
   "module": "./dist/svg-path-simplify.esm.js",
-  "browser": "./dist/svg-path-simplify.js",
+
   "exports": {
     ".": {
       "import": "./dist/svg-path-simplify.esm.js",
-      "require": "./dist/svg-path-simplify.node.js"
+      "browser": "./dist/svg-path-simplify.esm.js"
     },
-    "./dist/svg-path-simplify.esm.js": "./dist/svg-path-simplify.esm.js",
-    "./dist/svg-path-simplify.js": "./dist/svg-path-simplify.js",
-    "./dist/svg-path-simplify.min.js": "./dist/svg-path-simplify.min.js"
+
+    "./node": {
+      "import": "./dist/svg-path-simplify.poly.cjs"
+    },
+  
+    "./iife": {
+      "default": "./dist/svg-path-simplify.min.js"
+    }
   },
-  "type": "module",
+
+  "browser": {
+    "./dist/svg-path-simplify.node.cjs": "./dist/svg-path-simplify.esm.js"
+  },
+
   "repository": {
     "type": "git",
     "url": "git+https://github.com/herrstrietzel/svg-path-simplify.git"
   },
+
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c --watch",
-    "test": "node testSVG.js"
+    "test": "node testSVG.js",
+    "debug": "node debug.cjs",
+    "test1": "node test.js"
   },
-  "devDependencies": {
-    "@rollup/plugin-terser": "^0.4.4",
-    "rollup": "^3.29.5",
-    "rollup-plugin-concat": "^1.0.4"
-  },
+
   "keywords": [
     "bezier-simplification",
     "svg-minification",
     "simplification",
     "svg"
   ],
+
   "author": "herrstrietzel",
   "license": "GPL-2.0",
   "description": "Simplify Bézier paths while maintaining their shape",
+
   "dependencies": {
-    "linkedom": "^0.18.12",
-    "svg-path-simplify": "^0.0.5",
+    "linkedom": "^0.18.12"
+  },
+
+  "devDependencies": {
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^3.29.5",
+    "rollup-plugin-concat": "^1.0.4",
     "terser": "^5.43.1"
   },
+
   "bugs": {
     "url": "https://github.com/herrstrietzel/svg-path-simplify/issues"
   },
+
   "homepage": "https://github.com/herrstrietzel/svg-path-simplify#readme"
 }

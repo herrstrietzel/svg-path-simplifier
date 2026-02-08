@@ -12,8 +12,9 @@ import { renderPoint, renderPath } from "./visualize";
 */
 
 
-import { checkLineIntersection, getAngle, getDistance, getDistAv, getSquareDistance, interpolate, pointAtT, rotatePoint } from './geometry';
+import { checkLineIntersection, getAngle, getDeltaAngle, getDistance, getDistAv, getSquareDistance, interpolate, pointAtT, rotatePoint, toParametricAngle } from './geometry';
 import { getPathArea, getPolygonArea, getRelativeAreaDiff } from './geometry_area';
+import { pathDataToD } from './pathData_stringify';
 import { roundPathData } from './rounding';
 import { renderPoint } from './visualize';
 
@@ -24,13 +25,13 @@ export function revertCubicQuadratic(p0 = {}, cp1 = {}, cp2 = {}, p = {}) {
     let cp2X = interpolate(p, cp2, 1.5)
 
     let dist0 = getDistAv(p0, p)
-    let threshold = dist0 * 0.01;
+    let threshold = dist0 * 0.03;
     let dist1 = getDistAv(cp1X, cp2X)
 
     let cp1_Q = null;
     let type = 'C'
     let values = [cp1.x, cp1.y, cp2.x, cp2.y, p.x, p.y];
-    let comN = {type, values}
+    let comN = { type, values }
 
     if (dist1 && threshold && dist1 < threshold) {
         cp1_Q = checkLineIntersection(p0, cp1, p, cp2, false);
@@ -40,6 +41,7 @@ export function revertCubicQuadratic(p0 = {}, cp1 = {}, cp2 = {}, p = {}) {
             comN.values = [cp1_Q.x, cp1_Q.y, p.x, p.y];
             comN.p0 = p0;
             comN.cp1 = cp1_Q;
+            comN.cp2 = null;
             comN.p = p
         }
     }
@@ -62,7 +64,7 @@ export function convertPathData(pathData, {
     if (toShorthands) pathData = pathDataToShorthands(pathData);
 
     // pre round - before relative conversion to minimize distortions
-    if(decimals>-1 && toRelative) pathData = roundPathData(pathData, decimals);
+    if (decimals > -1 && toRelative) pathData = roundPathData(pathData, decimals);
     if (toRelative) pathData = pathDataToRelative(pathData);
     if (decimals > -1) pathData = roundPathData(pathData, decimals);
 
@@ -415,7 +417,7 @@ export function pathDataToShorthands(pathData, decimals = -1, test = false) {
         let com = pathData[i];
         let { type, values } = com;
         let valuesLen = values.length;
-        let valuesLast = [values[valuesLen-2], values[valuesLen-1]];
+        let valuesLast = [values[valuesLen - 2], values[valuesLen - 1]];
 
         // previoius command
         let comPrev = pathData[i - 1];
@@ -599,6 +601,123 @@ export function pathDataToQuadratic(pathData, precision = 0.1) {
         }
     }
     return newPathData;
+}
+
+
+/**
+ * Convert a parametrized SVG arc to cubic Beziers
+ * Assumes arc parameters are already resolved
+ */
+export function arcToBezierResolved({
+
+    // start / end points
+    p0 = { x: 0, y: 0 },
+    p = { x: 0, y: 0 },
+
+    // center
+    centroid = { x: 0, y: 0 },
+
+    // radii
+    rx = 0,
+    ry = 0,
+
+    // SVG-style rotation
+    xAxisRotation = 0,
+    radToDegree = false,
+
+    // optional
+    startAngle = null,
+    endAngle = null,
+    deltaAngle = null
+
+} = {}) {
+
+    if (!rx || !ry) return [];
+
+    // new pathData
+    let pathData = [];
+
+    // maximum delta for cubic approximations: Math.PI / 2 (90deg)
+    const maxSegAngle = 1.5707963267948966
+
+    // Pomax cubic constant
+    const k = 0.551785;
+
+
+    // rotation
+    let phi = radToDegree
+        ? xAxisRotation
+        : xAxisRotation * Math.PI / 180;
+
+    let cosphi = Math.cos(phi);
+    let sinphi = Math.sin(phi);
+
+    // helper: transform point to ellipse local space
+    const toLocal = ({ x, y }) => {
+        const dx = x - centroid.x;
+        const dy = y - centroid.y;
+        return {
+            x: (cosphi * dx + sinphi * dy) / rx,
+            y: (-sinphi * dx + cosphi * dy) / ry
+        };
+    };
+
+    // derive angles if not provided
+    if (startAngle === null || endAngle === null || deltaAngle === null) {
+        ({ startAngle, endAngle, deltaAngle } = getDeltaAngle(centroid, p0, p))
+    }
+
+
+
+    // parametrize for elliptic arcs
+    let startAngleParam = rx !== ry ? toParametricAngle(startAngle, rx, ry) : startAngle;
+    //let endAngleParam = rx !== ry ? toParametricAngle(endAngle, rx, ry) : endAngle;
+    //let deltaAngleParam = endAngleParam - startAngleParam;
+    let deltaAngleParam = rx !== ry ? toParametricAngle(deltaAngle, rx, ry) : deltaAngle;
+
+    let segments = Math.max(1, Math.ceil(Math.abs(deltaAngleParam) / maxSegAngle));
+    let angStep = deltaAngleParam / segments;
+
+    for (let i = 0; i < segments; i++) {
+
+        const a = Math.abs(angStep) === maxSegAngle ?
+            Math.sign(angStep) * k :
+            (4 / 3) * Math.tan(angStep / 4);
+
+        let cos0 = Math.cos(startAngleParam);
+        let sin0 = Math.sin(startAngleParam);
+        let cos1 = Math.cos(startAngleParam + angStep);
+        let sin1 = Math.sin(startAngleParam + angStep);
+
+        // unit arc → cubic
+        let c1 = { x: cos0 - sin0 * a, y: sin0 + cos0 * a };
+        let c2 = { x: cos1 + sin1 * a, y: sin1 - cos1 * a };
+        let e = { x: cos1, y: sin1 };
+
+        let values = [];
+
+        [c1, c2, e].forEach(pt => {
+            let x = pt.x * rx;
+            let y = pt.y * ry;
+
+            values.push(
+                cosphi * x - sinphi * y + centroid.x,
+                sinphi * x + cosphi * y + centroid.y
+            );
+        });
+
+        pathData.push({
+            type: 'C',
+            values,
+            cp1: { x: values[0], y: values[1] },
+            cp2: { x: values[2], y: values[3] },
+            p: { x: values[4], y: values[5] },
+        });
+
+        startAngleParam += angStep;
+    }
+
+    return pathData;
 }
 
 
@@ -857,6 +976,221 @@ export function convertArrayPathData(pathDataArray) {
 /**
  * cubics to arcs
  */
+
+
+export function combineCubicsToArcs(pathData = [], {
+    threshold = 0,
+} = {}) {
+
+    let l = pathData.length;
+    let pathDataN = [pathData[0]];
+
+    for (let i = 1; i < l; i++) {
+        let com = pathData[i];
+        let { type, cp1 = null, cp2 = null, p0, p } = com;
+        let comP = pathData[i - 1];
+        let comN = pathData[i + 1] ? pathData[i + 1] : null;
+        let comN2 = pathData[i + 2] ? pathData[i + 2] : null;
+
+        if (type === 'C' && comN && comN.type === 'C') {
+
+            let thresh = getDistAv(p0, p) * 0.02;
+            //thresh = getDistAv(p0, p) * 10000;
+
+            let dx1 = Math.abs(p0.x - cp1.x)
+            let dy1 = Math.abs(p0.y - cp1.y)
+
+            let isHorizontal1 = dy1 < thresh;
+            let isVertical1 = dx1 < thresh;
+
+
+            let dx2 = Math.abs(comN.p0.x - comN.cp1.x)
+            let dy2 = Math.abs(comN.p0.y - comN.cp1.y)
+
+            let isHorizontal2 = dy2 < thresh;
+            let isVertical2 = dx2 < thresh;
+
+            //console.log(isHorizontal1, isVertical1);
+
+            // check angles
+            let angleDiff1 = (isHorizontal1 || isVertical1) ? 0 : Infinity;
+            let angleDiff2 = (isHorizontal2 || isVertical2) ? 0 : Infinity;
+
+            if (!isHorizontal1 && !isVertical1) {
+                //console.log('get angles', isHorizontal1, isVertical1);
+                let angle1 = getAngle(p0, cp1, true);
+                let angle2 = getAngle(p, cp2, true);
+                let deltaAngle = Math.abs(angle1 - angle2) * 180 / Math.PI;
+                angleDiff1 = Math.abs((deltaAngle % 180) - 90);
+            }
+
+            if (!isHorizontal2 && !isVertical2) {
+                //console.log('get angles', isHorizontal1, isVertical1);
+                let angle1 = getAngle(p0, cp1, true);
+                let angle2 = getAngle(p, cp2, true);
+                let deltaAngle = Math.abs(angle1 - angle2) * 180 / Math.PI;
+                angleDiff2 = Math.abs((deltaAngle % 180) - 90);
+            }
+
+
+            let isRightAngle1 = angleDiff1 < 3;
+            let isRightAngle2 = angleDiff2 < 3;
+
+            let centroids = [];
+            let poly = [];
+            let rArr = []
+            let largeArc = 0;
+
+            // final on path point
+            let p_a = p
+
+            // 2  possible candidates - test radius
+            if (isRightAngle1 && isRightAngle2) {
+                //renderPoint(markers, com.p)
+
+                let pI = checkLineIntersection(p0, cp1, p, cp2, false);
+                let r1 = getDistance(p0, pI);
+                let r2 = getDistance(p, pI);
+                let rDiff1 = Math.abs(r1 - r2)
+                //let r = r1
+
+                rArr.push(r1, r2)
+
+                poly.push(p0, p)
+                p_a = p
+
+
+                // 2 commands can be combined – similar radii  
+                if (rDiff1 < thresh) {
+
+                    //renderPoint(markers, com.p)
+
+                    // add to polygon for sweep
+                    poly.push(comN.p)
+
+                    // update final point
+                    p_a = comN.p
+
+                    // approximate/average final center point for final radius
+                    let cp1_r = rotatePoint(cp1, p0.x, p0.y, (Math.PI * -0.5))
+                    let cp2_r = rotatePoint(cp2, p.x, p.y, (Math.PI * 0.5))
+
+                    let cp1_r2 = rotatePoint(comN.cp1, comN.p0.x, comN.p0.y, (Math.PI * -0.5))
+                    let cp2_r2 = rotatePoint(comN.cp2, comN.p.x, comN.p.y, (Math.PI * 0.5))
+
+                    // assumed centroid
+                    let ptC = checkLineIntersection(p0, cp1_r, p, cp2_r, false)
+                    let ptC2 = checkLineIntersection(comN.p0, cp1_r2, comN.p, cp2_r2, false)
+                    let distC = ptC && ptC2 ? getDistAv(ptC, ptC2) : Infinity
+
+
+                    // 2 commands can definitely be combined 
+                    if (distC < thresh) {
+                        //renderPoint(markers, ptC, 'cyan', '1.2%', '0.5')
+                        //renderPoint(markers, ptC2, 'magenta', '0.5%', '0.5')
+
+                        // add to centroid array
+                        centroids.push(ptC, ptC2)
+
+                    }
+
+
+                    if (comN2 && comN2.type === 'C') {
+
+                        let cp1_r3 = rotatePoint(comN2.cp1, comN2.p0.x, comN2.p0.y, (Math.PI * -0.5))
+                        let cp2_r3 = rotatePoint(comN2.cp2, comN2.p.x, comN2.p.y, (Math.PI * 0.5))
+                        let ptC3 = checkLineIntersection(comN2.p0, cp1_r3, comN2.p, cp2_r3, false)
+
+                        let distC2 = ptC && ptC3 ? getDistAv(ptC, ptC3) : Infinity
+
+                        // can be combined with 3rd command
+                        if (distC2 < thresh) {
+                            //renderPoint(markers, ptC3, 'green', '2%', '0.3')
+
+                            let r3 = getDistance(ptC3, comN2.p)
+                            rArr.push(r3)
+
+                            // update final point
+                            p_a = comN2.p
+                            poly.push(p, comN2.p)
+
+                            largeArc = 1;
+
+                        }
+                    }
+                    //console.log(rDiff1, r, r1, r2);
+
+                } else {
+                    pathDataN.push(com)
+                    continue
+                }
+
+            }
+
+
+            // create new arc command
+            if (poly.length > 1) {
+
+                // get average radius
+                //rArr = rArr.sort()
+                let rA = Math.max(...rArr)
+                rA = rArr[0] 
+
+                let centroidA;
+                let xArr = centroids.map(pt => pt.x)
+                let yArr = centroids.map(pt => pt.y)
+
+                centroidA = {
+                    x: (xArr.reduce((a, b) => a + b, 0)) / centroids.length,
+                    y: (yArr.reduce((a, b) => a + b, 0)) / centroids.length
+                }
+
+                //console.log(xArr, centroidA);
+
+                //rA = getDistance(p0, centroids[0])
+
+                rA = getDistance(p0, centroidA)
+                let rA2 = getDistance(p, centroidA)
+                //rA = (rA+rA2) /2
+                //rA = Math.min(rA,rA2)
+
+                // rA = ((Math.min(...rArr) * 2 + Math.max(...rArr)) ) / 3
+                //console.log(rArr, rA);
+
+                let area = getPolygonArea(poly, false)
+                let sweep = area < 0 ? 0 : 1;
+
+                let comA = { type: 'A', values: [rA, rA, 0, largeArc, sweep, p_a.x, p_a.y], p0, p: p_a }
+
+                console.log('comA', comA);
+
+                pathDataN.push(comA)
+
+                i += rArr.length - 1;
+                //i++
+                continue
+                /*
+                */
+
+            }
+
+
+
+
+            // test angles
+
+        }
+
+        pathDataN.push(com)
+    }
+
+    let d = pathDataToD(pathDataN)
+    console.log(d);
+
+    console.log('pathDataN', pathDataN);
+    return pathDataN
+
+}
 
 export function cubicCommandToArc(p0, cp1, cp2, p, tolerance = 7.5) {
 

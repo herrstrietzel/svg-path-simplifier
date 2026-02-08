@@ -62,24 +62,36 @@ export default [
             },
         ]
     },
-
+    
+    /*
     // Node.js CJS Build
     {
+        //input: 'src/index-node.js',
         input: 'src/index.js',
         output: [
             {
-                file: `dist/${libName}.node.js`,
+                file: `dist/${libName}.node.cjs`,
                 format: 'cjs',
                 exports: 'named',
-                plugins: [stripDevComments()]
+                //plugins: [stripDevComments()]
             },
+        ]
+    },
+    */
+
+    {
+        // node DOM polyfills
+        input: 'src/index-poly.js',
+        output: [
             {
-                file: `dist/${libName}.node.min.js`,
+                file: `dist/${libName}.poly.cjs`,
                 format: 'cjs',
                 exports: 'named',
-                plugins: [terser()]
-            }
+                //plugins: [stripDevComments()]
+            },
         ]
     }
+
+
 ];
 

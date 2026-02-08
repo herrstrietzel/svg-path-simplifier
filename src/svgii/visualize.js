@@ -233,9 +233,9 @@ export function renderPoint(
 }
 
 
-export function renderPath(svg, d = '', stroke = 'green', strokeWidth = '1%', render = true) {
+export function renderPath(svg, d = '', stroke = 'green', strokeWidth = '1%', opacity="1", render = true) {
 
-    let path = `<path d="${d}" fill="none" stroke="${stroke}"  stroke-width="${strokeWidth}" /> `;
+    let path = `<path d="${d}" fill="none" stroke="${stroke}"  stroke-width="${strokeWidth}" stroke-opacity="${opacity}" /> `;
 
     if (render) {
         svg.insertAdjacentHTML("beforeend", path);

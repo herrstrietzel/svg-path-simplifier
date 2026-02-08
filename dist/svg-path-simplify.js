@@ -28,9 +28,9 @@
       }
   }
 
-  function renderPath(svg, d = '', stroke = 'green', strokeWidth = '1%', render = true) {
+  function renderPath(svg, d = '', stroke = 'green', strokeWidth = '1%', opacity="1", render = true) {
 
-      let path = `<path d="${d}" fill="none" stroke="${stroke}"  stroke-width="${strokeWidth}" /> `;
+      let path = `<path d="${d}" fill="none" stroke="${stroke}"  stroke-width="${strokeWidth}" stroke-opacity="${opacity}" /> `;
 
       if (render) {
           svg.insertAdjacentHTML("beforeend", path);
@@ -108,18 +108,62 @@
       return angle
   }
 
+  function getDeltaAngle(centerPoint, startPoint, endPoint, largeArc = false) {
+
+      const normalizeAngle = (angle) => {
+          let normalized = angle % (2 * Math.PI);
+
+          if (normalized > Math.PI) {
+              normalized -= 2 * Math.PI;
+          } else if (normalized <= -Math.PI) {
+              normalized += 2 * Math.PI;
+          }
+          return normalized;
+      };
+
+      let startAngle = Math.atan2(
+          startPoint.y - centerPoint.y,
+          startPoint.x - centerPoint.x
+      );
+
+      let endAngle = Math.atan2(
+          endPoint.y - centerPoint.y,
+          endPoint.x - centerPoint.x
+      );
+
+      // Calculate raw delta angle (difference)
+      let deltaAngle = endAngle - startAngle;
+
+      // Normalize the delta angle to range (-π, π]
+      deltaAngle = normalizeAngle(deltaAngle);
+
+      if (largeArc) deltaAngle = Math.PI*2 - Math.abs(deltaAngle);
+
+      let phi = 180 / Math.PI;
+      let startAngleDeg = startAngle * phi;
+      let endAngleDeg = endAngle * phi;
+      let deltaAngleDeg = deltaAngle * phi;
+
+      return {
+          startAngle, endAngle, deltaAngle, startAngleDeg,
+          endAngleDeg,
+          deltaAngleDeg
+      };
+
+  }
+
   /**
    * based on:  Justin C. Round's 
    * http://jsfiddle.net/justin_c_rounds/Gd2S2/light/
    */
 
-  function checkLineIntersection(p1=null, p2=null, p3=null, p4=null, exact = true, debug=false) {
+  function checkLineIntersection(p1 = null, p2 = null, p3 = null, p4 = null, exact = true, debug = false) {
       // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
       let denominator, a, b, numerator1, numerator2;
       let intersectionPoint = {};
 
-      if(!p1 || !p2 || !p3 || !p4){
-          if(debug) console.warn('points missing');
+      if (!p1 || !p2 || !p3 || !p4) {
+          if (debug) console.warn('points missing');
           return false
       }
 
@@ -129,7 +173,7 @@
               return false;
           }
       } catch {
-          if(debug) console.warn('!catch', p1, p2, 'p3:', p3, 'p4:', p4);
+          if (debug) console.warn('!catch', p1, p2, 'p3:', p3, 'p4:', p4);
           return false
       }
 
@@ -486,6 +530,17 @@
       return arcData;
   }
 
+  function rotatePoint(pt, cx, cy, rotation = 0, convertToRadians = false) {
+      if (!rotation) return pt;
+
+      rotation = convertToRadians ? (rotation / 180) * Math.PI : rotation;
+
+      return {
+          x: cx + (pt.x - cx) * Math.cos(rotation) - (pt.y - cy) * Math.sin(rotation),
+          y: cy + (pt.x - cx) * Math.sin(rotation) + (pt.y - cy) * Math.cos(rotation)
+      };
+  }
+
   function getPointOnEllipse(cx, cy, rx, ry, angle, ellipseRotation = 0, parametricAngle = true, degrees = false) {
 
       // Convert degrees to radians
@@ -517,6 +572,18 @@
           pt.y = cy + (x - cx) * sin$1(ellipseRotation) + (y - cy) * cos$1(ellipseRotation);
       }
       return pt
+  }
+
+  // to parametric angle helper
+  function toParametricAngle(angle, rx, ry) {
+
+      if (rx === ry || (angle % PI$1 * 0.5 === 0)) return angle;
+      let angleP = atan$1(tan$1(angle) * (rx / ry));
+
+      // Ensure the parametric angle is in the correct quadrant
+      angleP = cos$1(angle) < 0 ? angleP + PI$1 : angleP;
+
+      return angleP
   }
 
   function bezierhasExtreme(p0, cpts = [], angleThreshold = 0.05) {
@@ -2334,13 +2401,13 @@
       let cp2X = interpolate(p, cp2, 1.5);
 
       let dist0 = getDistAv(p0, p);
-      let threshold = dist0 * 0.01;
+      let threshold = dist0 * 0.03;
       let dist1 = getDistAv(cp1X, cp2X);
 
       let cp1_Q = null;
       let type = 'C';
       let values = [cp1.x, cp1.y, cp2.x, cp2.y, p.x, p.y];
-      let comN = {type, values};
+      let comN = { type, values };
 
       if (dist1 && threshold && dist1 < threshold) {
           cp1_Q = checkLineIntersection(p0, cp1, p, cp2, false);
@@ -2350,6 +2417,7 @@
               comN.values = [cp1_Q.x, cp1_Q.y, p.x, p.y];
               comN.p0 = p0;
               comN.cp1 = cp1_Q;
+              comN.cp2 = null;
               comN.p = p;
           }
       }
@@ -2367,7 +2435,7 @@
       if (toShorthands) pathData = pathDataToShorthands(pathData);
 
       // pre round - before relative conversion to minimize distortions
-      if(decimals>-1 && toRelative) pathData = roundPathData(pathData, decimals);
+      if (decimals > -1 && toRelative) pathData = roundPathData(pathData, decimals);
       if (toRelative) pathData = pathDataToRelative(pathData);
       if (decimals > -1) pathData = roundPathData(pathData, decimals);
 
@@ -2704,7 +2772,7 @@
           let com = pathData[i];
           let { type, values } = com;
           let valuesLen = values.length;
-          let valuesLast = [values[valuesLen-2], values[valuesLen-1]];
+          let valuesLast = [values[valuesLen - 2], values[valuesLen - 1]];
 
           // previoius command
           let comPrev = pathData[i - 1];
@@ -2830,6 +2898,108 @@
       }
 
       return pathDataShorts;
+  }
+
+  /**
+   * Convert a parametrized SVG arc to cubic Beziers
+   * Assumes arc parameters are already resolved
+   */
+  function arcToBezierResolved({
+
+      // start / end points
+      p0 = { x: 0, y: 0 },
+      p = { x: 0, y: 0 },
+
+      // center
+      centroid = { x: 0, y: 0 },
+
+      // radii
+      rx = 0,
+      ry = 0,
+
+      // SVG-style rotation
+      xAxisRotation = 0,
+      radToDegree = false,
+
+      // optional
+      startAngle = null,
+      endAngle = null,
+      deltaAngle = null
+
+  } = {}) {
+
+      if (!rx || !ry) return [];
+
+      // new pathData
+      let pathData = [];
+
+      // maximum delta for cubic approximations: Math.PI / 2 (90deg)
+      const maxSegAngle = 1.5707963267948966;
+
+      // Pomax cubic constant
+      const k = 0.551785;
+
+      // rotation
+      let phi = radToDegree
+          ? xAxisRotation
+          : xAxisRotation * Math.PI / 180;
+
+      let cosphi = Math.cos(phi);
+      let sinphi = Math.sin(phi);
+
+      // derive angles if not provided
+      if (startAngle === null || endAngle === null || deltaAngle === null) {
+          ({ startAngle, endAngle, deltaAngle } = getDeltaAngle(centroid, p0, p));
+      }
+
+      // parametrize for elliptic arcs
+      let startAngleParam = rx !== ry ? toParametricAngle(startAngle, rx, ry) : startAngle;
+
+      let deltaAngleParam = rx !== ry ? toParametricAngle(deltaAngle, rx, ry) : deltaAngle;
+
+      let segments = Math.max(1, Math.ceil(Math.abs(deltaAngleParam) / maxSegAngle));
+      let angStep = deltaAngleParam / segments;
+
+      for (let i = 0; i < segments; i++) {
+
+          const a = Math.abs(angStep) === maxSegAngle ?
+              Math.sign(angStep) * k :
+              (4 / 3) * Math.tan(angStep / 4);
+
+          let cos0 = Math.cos(startAngleParam);
+          let sin0 = Math.sin(startAngleParam);
+          let cos1 = Math.cos(startAngleParam + angStep);
+          let sin1 = Math.sin(startAngleParam + angStep);
+
+          // unit arc → cubic
+          let c1 = { x: cos0 - sin0 * a, y: sin0 + cos0 * a };
+          let c2 = { x: cos1 + sin1 * a, y: sin1 - cos1 * a };
+          let e = { x: cos1, y: sin1 };
+
+          let values = [];
+
+          [c1, c2, e].forEach(pt => {
+              let x = pt.x * rx;
+              let y = pt.y * ry;
+
+              values.push(
+                  cosphi * x - sinphi * y + centroid.x,
+                  sinphi * x + cosphi * y + centroid.y
+              );
+          });
+
+          pathData.push({
+              type: 'C',
+              values,
+              cp1: { x: values[0], y: values[1] },
+              cp2: { x: values[2], y: values[3] },
+              p: { x: values[4], y: values[5] },
+          });
+
+          startAngleParam += angStep;
+      }
+
+      return pathData;
   }
 
   /** 
@@ -2965,10 +3135,6 @@
 
       return pathDataArc;
   }
-
-  /**
-   * cubics to arcs
-   */
 
   function cubicCommandToArc(p0, cp1, cp2, p, tolerance = 7.5) {
 
@@ -3995,7 +4161,7 @@
           let valsL = values.slice(-2);
           p = type !== 'Z' ? { x: valsL[0], y: valsL[1] } : M;
 
-          let area = getPolygonArea([p0, p, p1], true);
+          let area = p1 ? getPolygonArea([p0, p, p1], true) : Infinity;
 
           let distSquare = getSquareDistance(p0, p1);
 
@@ -4025,7 +4191,7 @@
 
           // colinear – exclude arcs (as always =) as semicircles won't have an area
 
-          if ( isFlat && c < l - 1 && (type === 'L' || (flatBezierToLinetos && isFlatBez)) ) {
+          if ( isFlat && c < l - 1  && comN.type!=='A' && (type === 'L' || (flatBezierToLinetos && isFlatBez)) ) {
               
               /*
               console.log(area, distMax );
@@ -4173,25 +4339,43 @@
       return  newIndex ? shiftSvgStartingPoint(pathData, newIndex) : pathData;
   }
 
-  function optimizeClosePath(pathData, removeFinalLineto = true, reorder = true) {
+  function optimizeClosePath(pathData, {removeFinalLineto = true, autoClose = true}={}) {
 
       let pathDataNew = [];
-      let len = pathData.length;
+      let l = pathData.length;
       let M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) };
-      let isClosed = pathData[len - 1].type.toLowerCase() === 'z';
+      let isClosed = pathData[l - 1].type.toLowerCase() === 'z';
 
       let linetos = pathData.filter(com => com.type === 'L');
 
       // check if order is ideal
-      let penultimateCom = pathData[len - 2];
+      let idxPenultimate = isClosed ? l-2 : l-1;
+
+      let penultimateCom = pathData[idxPenultimate];
       let penultimateType = penultimateCom.type;
       let penultimateComCoords = penultimateCom.values.slice(-2).map(val => +val.toFixed(8));
 
       // last L command ends at M 
       let isClosingCommand = penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y;
 
+      // add closepath Z to enable order optimizations
+      if(!isClosed && autoClose && isClosingCommand){
+
+          /*
+          // adjust final coords
+          let valsLast = pathData[idxPenultimate].values
+          let valsLastLen = valsLast.length;
+          pathData[idxPenultimate].values[valsLastLen-2] = M.x
+          pathData[idxPenultimate].values[valsLastLen-1] = M.y
+          */
+          
+          pathData.push({type:'Z', values:[]});
+          isClosed = true;
+          l++;
+      }
+
       // if last segment is not closing or a lineto
-      let skipReorder = pathData[1].type !== 'L' && (!isClosingCommand || penultimateType === 'L');
+      let skipReorder = pathData[1].type !== 'L' && (!isClosingCommand || penultimateCom.type === 'L');
       skipReorder = false;
 
       // we can't change starting point for non closed paths
@@ -4204,7 +4388,7 @@
       if (!skipReorder) {
 
           let indices = [];
-          for (let i = 0, len = pathData.length; i < len; i++) {
+          for (let i = 0; i < l; i++) {
               let com = pathData[i];
               let { type, values } = com;
               if (values.length) {
@@ -4240,17 +4424,17 @@
 
       M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) };
 
-      len = pathData.length;
+      l = pathData.length;
 
       // remove last lineto
-      penultimateCom = pathData[len - 2];
+      penultimateCom = pathData[l - 2];
       penultimateType = penultimateCom.type;
       penultimateComCoords = penultimateCom.values.slice(-2).map(val=>+val.toFixed(8));
 
       isClosingCommand = penultimateType === 'L' && penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y;
 
       if (removeFinalLineto && isClosingCommand) {
-          pathData.splice(len - 2, 1);
+          pathData.splice(l - 2, 1);
       }
 
       pathDataNew.push(...pathData);
@@ -4512,49 +4696,47 @@
   function removeEmptySVGEls(svg) {
     let els = svg.querySelectorAll('g, defs');
     els.forEach(el => {
-        if (!el.children.length) el.remove();
+      if (!el.children.length) el.remove();
     });
   }
 
   function cleanUpSVG(svgMarkup, {
-    returnDom=false, 
-    removeHidden=true,
-    removeUnused=true,
-  }={}) {
+    returnDom = false,
+    removeHidden = true,
+    removeUnused = true,
+  } = {}) {
     svgMarkup = cleanSvgPrologue(svgMarkup);
-    
+
     // replace namespaced refs 
     svgMarkup = svgMarkup.replaceAll("xlink:href=", "href=");
-    
+
     let svg = new DOMParser()
-      .parseFromString(svgMarkup, "text/html")
-      .querySelector("svg");
-    
-    
-    let allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'];
+    .parseFromString(svgMarkup, "text/html")
+    .querySelector("svg");
+
+    let allowed = ['viewBox', 'xmlns', 'width', 'height', 'id', 'class', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'];
     removeExcludedAttribues(svg, allowed);
-    
+
     let removeEls = ['metadata', 'script'];
-    
+
     let els = svg.querySelectorAll('*');
-    els.forEach(el=>{
-      let name = el.nodeName;    
+    els.forEach(el => {
+      let name = el.nodeName;
       // remove hidden elements
       let style = el.getAttribute('style') || '';
       let isHiddenByStyle = style ? style.trim().includes('display:none') : false;
       let isHidden = (el.getAttribute('display') && el.getAttribute('display') === 'none') || isHiddenByStyle;
-      if(name.includes(':') || removeEls.includes(name) || (removeHidden && isHidden )) {
+      if (name.includes(':') || removeEls.includes(name) || (removeHidden && isHidden)) {
         el.remove();
-      }else {
+      } else {
         // remove BS elements
         removeNameSpaceAtts(el);
       }
     });
 
-    if(returnDom) return svg
+    if (returnDom) return svg
 
     let markup = stringifySVG(svg);
-    console.log(markup);
 
     return markup;
   }
@@ -4573,7 +4755,7 @@
     );
   }
 
-  function removeExcludedAttribues(el, allowed=['viewBox', 'xmlns', 'width', 'height', 'id', 'class']){
+  function removeExcludedAttribues(el, allowed = ['viewBox', 'xmlns', 'width', 'height', 'id', 'class']) {
     let atts = [...el.attributes].map((att) => att.name);
     atts.forEach((att) => {
       if (!allowed.includes(att)) {
@@ -4591,13 +4773,13 @@
     });
   }
 
-  function stringifySVG(svg){
-      let markup = new XMLSerializer().serializeToString(svg);
+  function stringifySVG(svg) {
+    let markup = new XMLSerializer().serializeToString(svg);
     markup = markup
-    .replace(/\t/g, "")
-    .replace(/[\n\r|]/g, "\n")
-    .replace(/\n\s*\n/g, '\n')
-    .replace(/ +/g, ' ');
+      .replace(/\t/g, "")
+      .replace(/[\n\r|]/g, "\n")
+      .replace(/\n\s*\n/g, '\n')
+      .replace(/ +/g, ' ');
 
     return markup
   }
@@ -4607,12 +4789,19 @@
       tolerance = 1
   } = {}) {
 
+      // min size threshold for corners
+      threshold *= tolerance;
+
       let l = pathData.length;
 
       // add fist command
       let pathDataN = [pathData[0]];
 
       let isClosed = pathData[l - 1].type.toLowerCase() === 'z';
+      let zIsLineto = isClosed ?
+      (pathData[l-1].p.x === pathData[0].p0.x && pathData[l-1].p.y === pathData[0].p0.y)
+       : false ;
+
       let lastOff = isClosed ? 2 : 1;
 
       let comLast = pathData[l - lastOff];
@@ -4621,7 +4810,7 @@
       let firstIsLine = pathData[1].type === 'L';
       let firstIsBez = pathData[1].type === 'C';
 
-      let normalizeClose = isClosed && firstIsBez;
+      let normalizeClose = isClosed && firstIsBez && (lastIsLine || zIsLineto);
 
       // normalize closepath to lineto
       if (normalizeClose) {
@@ -4638,9 +4827,8 @@
           // search small cubic segments enclosed by linetos
           if ((type === 'L' && comN && comN.type === 'C') ||
               (type === 'C' && comN && comN.type === 'L')
-
           ) {
-              let comL0 = com;
+              let comL0 = type==='L' ? com : null;
               let comL1 = null;
               let comBez = [];
               let offset = 0;
@@ -4651,6 +4839,11 @@
                   comL0 = pathData[l - 1];
                   comL1 = comN;
 
+              }
+
+              if(!comL0) {
+                  pathDataN.push(com);
+                  continue
               }
 
               // closing corner to start
@@ -4692,43 +4885,41 @@
 
                   let signChange = (area1 < 0 && area2 > 0) || (area1 > 0 && area2 < 0);
 
-                  if (comBez && !signChange && len3 < threshold && len1 > len3 && len2 > len3) {
+                  // exclude mid bezier segments that are larger than surrounding linetos
+                  let bezThresh = len3*0.5 * tolerance;
+                  let isSmall = bezThresh < len1 && bezThresh < len2 ;
 
-                      let ptQ = checkLineIntersection(comL0.p0, comL0.p, comL1.p0, comL1.p, false);
-                      if (ptQ) {
+                  if (comBez.length && !signChange &&  isSmall ) {
 
-                          /*
-                          let dist1 = getDistAv(ptQ, comL0.p)
-                          let dist2 = getDistAv(ptQ, comL1.p0)
-                          let diff = Math.abs(dist1-dist2)
-                          let rat =  diff/Math.max(dist1, dist2)
-                          console.log('rat', rat);
-                          */
+                      let isFlatBezier = Math.abs(area2) <= getSquareDistance(comBez[0].p0, comBez[0].p)*0.005;
+                      let ptQ = !isFlatBezier ? checkLineIntersection(comL0.p0, comL0.p, comL1.p0, comL1.p, false) : null;
 
-                          /*
-                          // adjust curve start and end to meet original
-                          let t = 1
+                      if (!isFlatBezier && ptQ) {
 
-                          let p0_2 = pointAtT([ptQ, comL0.p], t)
+                          // final check: mid point proximity
+                          let ptM = pointAtT([comL0.p, ptQ, comL1.p0], 0.5);
 
-                          comL0.p = p0_2
-                          comL0.values = [p0_2.x, p0_2.y]
+                          let ptM_bez = comBez.length===1 ? pointAtT( [comBez[0].p0, comBez[0].cp1, comBez[0].cp2, comBez[0].p], 0.5 ) : comBez[0].p ;
 
-                          let p_2 = pointAtT([ptQ, comL1.p0], t)
+                          let dist1 = getDistAv(ptM, ptM_bez);
 
-                          comL1.p0 = p_2
+                          // not in tolerance – rturn original command
+                          if(dist1>len3){
 
-                          */
+                              pathDataN.push(com);
+                          } else {
 
-                          let comQ = { type: 'Q', values: [ptQ.x, ptQ.y, comL1.p0.x, comL1.p0.y] };
-                          comQ.p0 = comL0.p;
-                          comQ.cp1 = ptQ;
-                          comQ.p = comL1.p0;
+                              let comQ = { type: 'Q', values: [ptQ.x, ptQ.y, comL1.p0.x, comL1.p0.y] };
+                              comQ.p0 = comL0.p;
+                              comQ.cp1 = ptQ;
+                              comQ.p = comL1.p0;
+      
+                              // add quadratic command
+                              pathDataN.push(comL0, comQ);
+                              i += offset;
+                              continue;
+                          }
 
-                          // add quadratic command
-                          pathDataN.push(comL0, comQ);
-                          i += offset;
-                          continue;
                       }
                   }
               }
@@ -4744,11 +4935,318 @@
       }
 
       // revert close path normalization
-      if (normalizeClose) {
+      if (normalizeClose  || (isClosed && pathDataN[pathDataN.length-1].type!=='Z') ) {
           pathDataN.push({ type: 'Z', values: [] });
       }
 
       return pathDataN;
+
+  }
+
+  function getArcFromPoly(pts) {
+      if (pts.length < 3) return false
+
+      // Pick 3 well-spaced points
+      let  p1 = pts[0];
+      let  p2 = pts[Math.floor(pts.length / 2)];
+      let  p3 = pts[pts.length - 1];
+
+      let  x1 = p1.x, y1 = p1.y;
+      let  x2 = p2.x, y2 = p2.y;
+      let  x3 = p3.x, y3 = p3.y;
+
+      let  a = x1 - x2;
+      let  b = y1 - y2;
+      let  c = x1 - x3;
+      let  d = y1 - y3;
+
+      let  e = ((x1 * x1 - x2 * x2) + (y1 * y1 - y2 * y2)) / 2;
+      let  f = ((x1 * x1 - x3 * x3) + (y1 * y1 - y3 * y3)) / 2;
+
+      let  det = a * d - b * c;
+
+      if (Math.abs(det) < 1e-10) {
+          console.warn("Points are collinear or numerically unstable");
+          return false;
+      }
+
+      // find center of arc
+      let  cx = (d * e - b * f) / det;
+      let  cy = (-c * e + a * f) / det;
+      let  centroid = { x: cx, y: cy };
+
+      // Radius (use start point)
+      let  r = getDistance(centroid, p1);
+
+      let angleData = getDeltaAngle(centroid, p1, p3);
+      let {deltaAngle, startAngle, endAngle} = angleData;
+
+      return {
+          centroid,
+          r,
+          startAngle,
+          endAngle,
+          deltaAngle
+      };
+  }
+
+  function refineRoundSegments(pathData, {
+      threshold = 0,
+      tolerance = 1,
+      // take arcs or cubic beziers
+      toCubic = false,
+      debug = false
+  } = {}) {
+
+      // min size threshold for corners
+      threshold *= tolerance;
+
+      let l = pathData.length;
+
+      // add fist command
+      let pathDataN = [pathData[0]];
+
+      // just for debugging
+      let pathDataTest = [];
+
+      for (let i = 1; i < l; i++) {
+          let com = pathData[i];
+          let { type } = com;
+          let comP = pathData[i - 1];
+          let comN = pathData[i + 1] ? pathData[i + 1] : null;
+          let comN2 = pathData[i + 2] ? pathData[i + 2] : null;
+          let comN3 = pathData[i + 3] ? pathData[i + 3] : null;
+          let comBez = null;
+
+          if ((com.type === 'C' || com.type === 'Q')) comBez = com;
+          else if (comN && (comN.type === 'C' || comN.type === 'Q')) comBez = comN;
+
+          let cpts = comBez ? (comBez.type === 'C' ? [comBez.p0, comBez.cp1, comBez.cp2, comBez.p] : [comBez.p0, comBez.cp1, comBez.p]) : [];
+
+          let areaBez = 0;
+          let areaLines = 0;
+          let signChange = false;
+          let L1, L2;
+          let combine = false;
+
+          let p0_S, p_S;
+          let poly = [];
+          let pMid;
+
+          // 2. line-line-bezier-line-line
+          if (
+              comP.type === 'L' &&
+              type === 'L' &&
+              comBez &&
+              comN2.type === 'L' &&
+              comN3 && (comN3.type === 'L' || comN3.type === 'Z')
+          ) {
+
+              L1 = [com.p0, com.p];
+              L2 = [comN2.p0, comN2.p];
+              p0_S = com.p0;
+              p_S = comN2.p;
+
+              // don't allow sign changes
+              areaBez = getPolygonArea(cpts, false);
+              areaLines = getPolygonArea([...L1, ...L2], false);
+              signChange = (areaBez < 0 && areaLines > 0) || (areaBez > 0 && areaLines < 0);
+
+              if (!signChange) {
+
+                  // mid point of mid bezier
+                  pMid = pointAtT(cpts, 0.5);
+
+                  // add to poly
+                  poly = [p0_S, pMid, p_S];
+
+                  combine = true;
+              }
+
+          }
+
+          // 1. line-bezier-bezier-line
+          else if ((type === 'C' || type === 'Q') && comP.type === 'L') {
+
+              // 1.2 next is cubic next is lineto
+              if ((comN.type === 'C' || comN.type === 'Q') && comN2.type === 'L') {
+
+                  combine = true;
+
+                  L1 = [comP.p0, comP.p];
+                  L2 = [comN2.p0, comN2.p];
+                  p0_S = comP.p;
+                  p_S = comN2.p0;
+
+                  // mid point of mid bezier
+                  pMid = comBez.p;
+
+                  // add to poly
+                  poly = [p0_S, comBez.p, p_S];
+
+              }
+          }
+
+          /**
+           * calculate either combined
+           * cubic or arc commands
+           */
+          if (combine) {
+
+              // try to find center of arc
+              let arcProps = getArcFromPoly(poly);
+              if (arcProps) {
+
+                  let { centroid, r, deltaAngle, startAngle, endAngle } = arcProps;
+
+                  let xAxisRotation = 0;
+                  let sweep = deltaAngle > 0 ? 1 : 0;
+                  let largeArc = Math.abs(deltaAngle) > Math.PI ? 1 : 0;
+
+                  let pCM = rotatePoint(p0_S, centroid.x, centroid.y, deltaAngle * 0.5);
+
+                  let dist2 = getDistAv(pCM, pMid);
+                  let thresh = getDistAv(p0_S, p_S) * 0.05;
+                  let bezierCommands;
+
+                  // point is close enough
+                  if (dist2 < thresh) {
+
+                      bezierCommands = arcToBezierResolved(
+                          {
+                              p0: p0_S,
+                              p: p_S,
+                              centroid,
+                              rx: r,
+                              ry: r,
+                              xAxisRotation,
+                              sweep,
+                              largeArc,
+                              deltaAngle,
+                              startAngle,
+                              endAngle
+                          }
+                      );
+
+                      if(bezierCommands.length === 1){
+
+                          // prefer more compact quadratic - otherwise arcs
+                          let comBezier = revertCubicQuadratic(p0_S, bezierCommands[0].cp1, bezierCommands[0].cp2, p_S);
+
+                          if (comBezier.type === 'Q') {
+                              toCubic = true;
+                          }
+
+                          com = comBezier;
+                      }
+
+                      // prefer arcs if 2 cubics are required
+                      if (bezierCommands.length > 1) toCubic = false;
+
+                      // return elliptic arc commands
+                      if (!toCubic) {
+                          // rewrite simplified command
+                          com.type = 'A';
+                          com.values = [r, r, xAxisRotation, largeArc, sweep, p_S.x, p_S.y];
+                      }
+
+                      com.p0 = p0_S;
+                      com.p = p_S;
+                      com.extreme = false;
+                      com.corner = false;
+
+                      // test rendering
+
+                      if (debug) {
+                          // arcs
+                          if (!toCubic) {
+                              pathDataTest = [
+                                  { type: 'M', values: [p0_S.x, p0_S.y] },
+                                  { type: 'A', values: [r, r, xAxisRotation, largeArc, sweep, p_S.x, p_S.y] },
+                              ];
+                          }
+                          // cubics
+                          else {
+                              pathDataTest = [
+                                  { type: 'M', values: [p0_S.x, p0_S.y] },
+                                  ...bezierCommands
+                              ];
+                          }
+
+                          let d = pathDataToD(pathDataTest);
+                          renderPath(markers, d, 'orange', '0.5%', '0.5');
+                      }
+
+                      pathDataN.push(com);
+                      i++;
+                      continue
+
+                  }
+              }
+          }
+
+          // pass through
+          pathDataN.push(com);
+      }
+
+      return pathDataN;
+  }
+
+  function refineClosingCommand(pathData = [], {
+      threshold = 0,
+  } = {}) {
+
+      let l = pathData.length;
+      let comLast = pathData[l - 1];
+      let isClosed = comLast.type.toLowerCase() === 'z';
+      let idxPenultimate = isClosed ? l - 2 : l - 1;
+      let comPenultimate = isClosed ? pathData[idxPenultimate] : pathData[idxPenultimate];
+      let valsPen = comPenultimate.values.slice(-2);
+
+      let M = { x: pathData[0].values[0], y: pathData[0].values[1] };
+      let pPen = { x: valsPen[0], y: valsPen[1] };
+      let dist = getDistAv(M, pPen);
+
+      // adjust last coordinates for better reordering
+      if (dist && dist < threshold) {
+
+          let valsLast = pathData[idxPenultimate].values;
+          let valsLastLen = valsLast.length;
+          pathData[idxPenultimate].values[valsLastLen - 2] = M.x;
+          pathData[idxPenultimate].values[valsLastLen - 1] = M.y;
+
+          // adjust cpts
+          let comFirst = pathData[1];
+
+          if (comFirst.type === 'C' && comPenultimate.type === 'C') {
+              let dx1 = Math.abs(comFirst.values[0] - comPenultimate.values[2]);
+              let dy1 = Math.abs(comFirst.values[1] - comPenultimate.values[3]);
+
+              let dx2 = Math.abs(pathData[1].values[0] - comFirst.values[0]);
+              let dy2 = Math.abs(pathData[1].values[1] - comFirst.values[1]);
+
+              let dx3 = Math.abs(pathData[1].values[0] - comPenultimate.values[2]);
+              let dy3 = Math.abs(pathData[1].values[1] - comPenultimate.values[3]);
+
+              let ver = dx2 < threshold && dx3 < threshold && dy1;
+              let hor = (dy2 < threshold && dy3 < threshold) && dx1;
+
+              if (dx1 && dx1 < threshold && ver) {
+
+                  pathData[1].values[0] = M.x;
+                  pathData[idxPenultimate].values[2] = M.x;
+              }
+
+              if (dy1 && dy1 < threshold && hor) {
+
+                  pathData[1].values[1] = M.y;
+                  pathData[idxPenultimate].values[3] = M.y;
+              }
+
+          }
+      }
+
+      return pathData;
 
   }
 
@@ -4770,13 +5268,15 @@
 
       simplifyBezier = true,
       optimizeOrder = true,
+      autoClose = true,
       removeZeroLength = true,
+      refineClosing = true,
       removeColinear = true,
       flatBezierToLinetos = true,
       revertToQuadratics = true,
 
       refineExtremes = true,
-      refineCorners = false, 
+      simplifyCorners = false,
 
       keepExtremes = true,
       keepCorners = true,
@@ -4784,6 +5284,8 @@
       keepInflections = false,
       addExtremes = false,
       removeOrphanSubpaths = false,
+
+      simplifyRound = false,
 
       // svg path optimizations
       decimals = 3,
@@ -4837,7 +5339,7 @@
 
               // stringify to compare lengths
 
-              let dStr = d.map(com=>{return `${com.type} ${com.values.join(' ')}`}).join(' ') ;
+              let dStr = d.map(com => { return `${com.type} ${com.values.join(' ')}` }).join(' ');
               svgSize = dStr.length;
 
           }
@@ -4902,8 +5404,9 @@
           // cleaned up pathData
 
           // reset array
-          let pathDataFlat = [];
+          let pathDataPlusArr = [];
 
+          // loop sub paths
           for (let i = 0; i < lenSub; i++) {
 
               let pathDataSub = subPathArr[i];
@@ -4927,6 +5430,9 @@
 
               // simplify beziers
               let { pathData, bb, dimA } = pathDataPlus;
+
+              if (refineClosing) pathData = refineClosingCommand(pathData, { threshold: dimA * 0.001 });
+
               pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
               // refine extremes
@@ -4940,7 +5446,7 @@
 
                   let thresh = 1;
 
-                  for(let c=0, l=pathData.length; c<l; c++){
+                  for (let c = 0, l = pathData.length; c < l; c++) {
                       let com = pathData[c];
                       let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                       if (type === 'C') {
@@ -4953,6 +5459,9 @@
                   // combine adjacent cubics
                   pathData = combineArcs(pathData);
 
+                  /*
+                  */
+
               }
 
               // post processing: remove flat beziers
@@ -4961,15 +5470,18 @@
               }
 
               // refine corners
-              if(refineCorners){
+              if (simplifyCorners) {
+
                   let threshold = (bb.width + bb.height) / 2 * 0.1;
                   pathData = refineRoundedCorners(pathData, { threshold, tolerance });
-
               }
+
+              // refine round segment sequences
+              if (simplifyRound) pathData = refineRoundSegments(pathData);
 
               // simplify to quadratics
               if (revertToQuadratics) {
-                  for(let c=0, l=pathData.length; c<l; c++){
+                  for (let c = 0, l = pathData.length; c < l; c++) {
                       let com = pathData[c];
                       let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                       if (type === 'C') {
@@ -4987,15 +5499,22 @@
               }
 
               // optimize close path
-              if (optimizeOrder) pathData = optimizeClosePath(pathData);
+              if (optimizeOrder) pathData = optimizeClosePath(pathData, { autoClose });
 
               // update
-              pathDataFlat.push(...pathData);
+
+              pathDataPlusArr.push({ pathData, bb });
 
           }
 
+          // sort to top left
+          if (optimizeOrder) pathDataPlusArr = pathDataPlusArr.sort((a, b) => a.bb.y - b.bb.y || a.bb.x - b.bb.x);
+
           // flatten compound paths 
-          pathData = pathDataFlat;
+          pathData = [];
+          pathDataPlusArr.forEach(sub => {
+              pathData.push(...sub.pathData);
+          });
 
           if (autoAccuracy) {
               decimals = detectAccuracy(pathData);
@@ -5095,11 +5614,7 @@
       log, hypot, max, min, pow, random, round, sin, sqrt, tan, PI
   } = Math;
 
-  /*
-  import {XMLSerializerPoly, DOMParserPoly} from './dom_polyfills';
-  export {XMLSerializerPoly as XMLSerializerPoly};
-  export {DOMParserPoly as DOMParserPoly};
-  */
+  // just for visual debugging
 
   // IIFE 
   if (typeof window !== 'undefined') {

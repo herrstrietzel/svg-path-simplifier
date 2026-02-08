@@ -31,7 +31,7 @@ window.addEventListener('DOMContentLoaded', (e) => {
     document.addEventListener('settingsChange', (e) => {
 
         //console.log('settingschange', settings);
-        
+
         //update rendering
         updateSVG(settings);
 
@@ -168,7 +168,7 @@ function updateSVG(settings = {}) {
 
 
 
-    let svgSize = !mode ? +(d.length / 1024).toFixed(3) : report.svgSize;
+    let svgSize = !mode ? +(d.length / 1024).toFixed(3) : report.svgSizeOpt;
     let reportRemoved = !mode ? `<br>${report.new}/${report.original} – removed: ${report.saved} <br>` : ''
     let reportCompression = `${report.compression}&thinsp;%`
 

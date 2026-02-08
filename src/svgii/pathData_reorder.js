@@ -47,28 +47,44 @@ export function pathDataToTopLeft(pathData) {
 
 
 
-export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = true) {
+export function optimizeClosePath(pathData, {removeFinalLineto = true, autoClose = true}={}) {
 
     let pathDataNew = [];
-    let len = pathData.length;
+    let l = pathData.length;
     let M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) }
-    let isClosed = pathData[len - 1].type.toLowerCase() === 'z'
+    let isClosed = pathData[l - 1].type.toLowerCase() === 'z'
 
     let linetos = pathData.filter(com => com.type === 'L')
 
-    //return pathData;
-
 
     // check if order is ideal
-    let penultimateCom = pathData[len - 2];
+    let idxPenultimate = isClosed ? l-2 : l-1
+
+    let penultimateCom = pathData[idxPenultimate];
     let penultimateType = penultimateCom.type;
     let penultimateComCoords = penultimateCom.values.slice(-2).map(val => +val.toFixed(8))
 
     // last L command ends at M 
     let isClosingCommand = penultimateComCoords[0] === M.x && penultimateComCoords[1] === M.y
 
+    // add closepath Z to enable order optimizations
+    if(!isClosed && autoClose && isClosingCommand){
+
+        /*
+        // adjust final coords
+        let valsLast = pathData[idxPenultimate].values
+        let valsLastLen = valsLast.length;
+        pathData[idxPenultimate].values[valsLastLen-2] = M.x
+        pathData[idxPenultimate].values[valsLastLen-1] = M.y
+        */
+        
+        pathData.push({type:'Z', values:[]})
+        isClosed = true;
+        l++
+    }
+
     // if last segment is not closing or a lineto
-    let skipReorder = pathData[1].type !== 'L' && (!isClosingCommand || penultimateType === 'L')
+    let skipReorder = pathData[1].type !== 'L' && (!isClosingCommand || penultimateCom.type === 'L')
     skipReorder = false
 
 
@@ -82,7 +98,7 @@ export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = 
     if (!skipReorder) {
         //get top most index
         let indices = [];
-        for (let i = 0, len = pathData.length; i < len; i++) {
+        for (let i = 0; i < l; i++) {
             let com = pathData[i];
             let { type, values } = com;
             if (values.length) {
@@ -122,10 +138,10 @@ export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = 
 
     M = { x: +pathData[0].values[0].toFixed(8), y: +pathData[0].values[1].toFixed(8) }
 
-    len = pathData.length
+    l = pathData.length
 
     // remove last lineto
-    penultimateCom = pathData[len - 2];
+    penultimateCom = pathData[l - 2];
     penultimateType = penultimateCom.type;
     penultimateComCoords = penultimateCom.values.slice(-2).map(val=>+val.toFixed(8))
 
@@ -134,7 +150,7 @@ export function optimizeClosePath(pathData, removeFinalLineto = true, reorder = 
     //console.log('penultimateCom', isClosingCommand, penultimateCom.values, M);
 
     if (removeFinalLineto && isClosingCommand) {
-        pathData.splice(len - 2, 1)
+        pathData.splice(l - 2, 1)
     }
 
     pathDataNew.push(...pathData);

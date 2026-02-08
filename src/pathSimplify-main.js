@@ -3,7 +3,7 @@ import { simplifyPathDataCubic } from './pathData_simplify_cubic';
 import { getPathDataVertices, pointAtT } from './svgii/geometry';
 import { getPolyBBox } from './svgii/geometry_bbox';
 import { analyzePathData } from './svgii/pathData_analyze';
-import { combineArcs, convertPathData, cubicCommandToArc, revertCubicQuadratic } from './svgii/pathData_convert';
+import { combineArcs, combineCubicsToArcs, convertPathData, cubicCommandToArc, revertCubicQuadratic } from './svgii/pathData_convert';
 import { parsePathDataNormalized } from './svgii/pathData_parse';
 import { shapeElToPath } from './svgii/pathData_parse_els';
 import { pathDataRemoveColinear } from './svgii/pathData_remove_collinear';
@@ -21,6 +21,10 @@ import { refineAdjacentExtremes } from './svgii/pathData_simplify_refineExtremes
 import { cleanUpSVG, removeEmptySVGEls, stringifySVG } from './svgii/svg_cleanup';
 import { renderPoint } from './svgii/visualize';
 import { refineRoundedCorners } from './svgii/pathData_simplify_refineCorners';
+import { refineRoundSegments } from './svgii/pathData_refine_round';
+import { refineClosingCommand } from './svgii/pathData_remove_short';
+
+//import { installDOMPolyfills } from './dom-polyfill';
 
 export function svgPathSimplify(input = '', {
 
@@ -42,13 +46,15 @@ export function svgPathSimplify(input = '', {
 
     simplifyBezier = true,
     optimizeOrder = true,
+    autoClose = true,
     removeZeroLength = true,
+    refineClosing = true,
     removeColinear = true,
     flatBezierToLinetos = true,
     revertToQuadratics = true,
 
     refineExtremes = true,
-    refineCorners = false, 
+    simplifyCorners = false,
 
     keepExtremes = true,
     keepCorners = true,
@@ -56,6 +62,8 @@ export function svgPathSimplify(input = '', {
     keepInflections = false,
     addExtremes = false,
     removeOrphanSubpaths = false,
+
+    simplifyRound = false,
 
 
     // svg path optimizations
@@ -74,6 +82,7 @@ export function svgPathSimplify(input = '', {
 
 
 } = {}) {
+
 
     // clamp tolerance 
     tolerance = Math.max(0.1, tolerance);
@@ -113,7 +122,7 @@ export function svgPathSimplify(input = '', {
 
             // stringify to compare lengths
             //let dStr = pathDataToD(d);
-            let dStr = d.map(com=>{return `${com.type} ${com.values.join(' ')}`}).join(' ') ;
+            let dStr = d.map(com => { return `${com.type} ${com.values.join(' ')}` }).join(' ');
             svgSize = dStr.length;
 
         }
@@ -169,7 +178,6 @@ export function svgPathSimplify(input = '', {
         // count commands for evaluation
         let comCount = pathData.length
 
-
         if (removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
 
         /**
@@ -183,8 +191,9 @@ export function svgPathSimplify(input = '', {
         //let pathDataArrN = new Array(lenSub);
 
         // reset array
-        let pathDataFlat = []
+        let pathDataPlusArr = []
 
+        // loop sub paths
         for (let i = 0; i < lenSub; i++) {
 
 
@@ -214,9 +223,16 @@ export function svgPathSimplify(input = '', {
             // analyze pathdata to add info about signicant properties such as extremes, corners
             let pathDataPlus = analyzePathData(pathDataSub);
 
+            //console.log('pathDataPlus', pathDataPlus);
+
 
             // simplify beziers
             let { pathData, bb, dimA } = pathDataPlus;
+
+
+            if (refineClosing) pathData = refineClosingCommand(pathData, { threshold: dimA * 0.001 })
+
+
             pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
             // refine extremes
@@ -231,7 +247,10 @@ export function svgPathSimplify(input = '', {
 
                 let thresh = 1;
 
-                for(let c=0, l=pathData.length; c<l; c++){
+                //pathData = combineCubicsToArcs(pathData)
+
+
+                for (let c = 0, l = pathData.length; c < l; c++) {
                     let com = pathData[c]
                     let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                     if (type === 'C') {
@@ -244,6 +263,9 @@ export function svgPathSimplify(input = '', {
                 // combine adjacent cubics
                 pathData = combineArcs(pathData)
 
+                /*
+                */
+
             }
 
 
@@ -254,17 +276,20 @@ export function svgPathSimplify(input = '', {
 
 
             // refine corners
-            if(refineCorners){
+            if (simplifyCorners) {
+                //pathData = removeZeroLengthLinetos(pathData);
+
                 let threshold = (bb.width + bb.height) / 2 * 0.1
                 pathData = refineRoundedCorners(pathData, { threshold, tolerance })
-                //console.log(refineCorners);
             }
 
+            // refine round segment sequences
+            if (simplifyRound) pathData = refineRoundSegments(pathData);
 
 
             // simplify to quadratics
             if (revertToQuadratics) {
-                for(let c=0, l=pathData.length; c<l; c++){
+                for (let c = 0, l = pathData.length; c < l; c++) {
                     let com = pathData[c]
                     let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
                     if (type === 'C') {
@@ -283,18 +308,26 @@ export function svgPathSimplify(input = '', {
 
 
             // optimize close path
-            if (optimizeOrder) pathData = optimizeClosePath(pathData)
-
+            if (optimizeOrder) pathData = optimizeClosePath(pathData, { autoClose })
 
             // update
-            pathDataFlat.push(...pathData)
-            //pathDataArrN[i]=(pathData)
+            //pathDataFlat.push(...pathData)
+            //subPathArr[i]=pathData
+            pathDataPlusArr.push({ pathData, bb })
 
         }
 
+        // sort to top left
+        if (optimizeOrder) pathDataPlusArr = pathDataPlusArr.sort((a, b) => a.bb.y - b.bb.y || a.bb.x - b.bb.x)
 
         // flatten compound paths 
-        pathData = pathDataFlat;
+        pathData = [];
+        pathDataPlusArr.forEach(sub => {
+            pathData.push(...sub.pathData)
+        })
+
+        //pathData = pathDataFlat;
+        //pathData = subPathArr.flat();
 
 
         //console.log('pathData', pathData);

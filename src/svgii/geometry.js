@@ -18,18 +18,68 @@ export function getAngle(p1, p2, normalize = false) {
 }
 
 
+export function getDeltaAngle(centerPoint, startPoint, endPoint, largeArc = false) {
+
+    const normalizeAngle = (angle) => {
+        let normalized = angle % (2 * Math.PI);
+
+        if (normalized > Math.PI) {
+            normalized -= 2 * Math.PI;
+        } else if (normalized <= -Math.PI) {
+            normalized += 2 * Math.PI;
+        }
+        return normalized;
+    }
+
+    let startAngle = Math.atan2(
+        startPoint.y - centerPoint.y,
+        startPoint.x - centerPoint.x
+    );
+
+    let endAngle = Math.atan2(
+        endPoint.y - centerPoint.y,
+        endPoint.x - centerPoint.x
+    );
+
+    // Calculate raw delta angle (difference)
+    let deltaAngle = endAngle - startAngle;
+
+    // Normalize the delta angle to range (-π, π]
+    deltaAngle = normalizeAngle(deltaAngle);
+
+    if (largeArc) deltaAngle = Math.PI*2 - Math.abs(deltaAngle);
+
+    let phi = 180 / Math.PI
+    let startAngleDeg = startAngle * phi
+    let endAngleDeg = endAngle * phi
+    let deltaAngleDeg = deltaAngle * phi
+
+    return {
+        startAngle, endAngle, deltaAngle, startAngleDeg,
+        endAngleDeg,
+        deltaAngleDeg
+    };
+
+}
+
+
+
+
+
+
+
 /**
  * based on:  Justin C. Round's 
  * http://jsfiddle.net/justin_c_rounds/Gd2S2/light/
  */
 
-export function checkLineIntersection(p1=null, p2=null, p3=null, p4=null, exact = true, debug=false) {
+export function checkLineIntersection(p1 = null, p2 = null, p3 = null, p4 = null, exact = true, debug = false) {
     // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
     let denominator, a, b, numerator1, numerator2;
     let intersectionPoint = {}
 
-    if(!p1 || !p2 || !p3 || !p4){
-        if(debug) console.warn('points missing');
+    if (!p1 || !p2 || !p3 || !p4) {
+        if (debug) console.warn('points missing');
         return false
     }
 
@@ -39,7 +89,7 @@ export function checkLineIntersection(p1=null, p2=null, p3=null, p4=null, exact 
             return false;
         }
     } catch {
-        if(debug) console.warn('!catch', p1, p2, 'p3:', p3, 'p4:', p4);
+        if (debug) console.warn('!catch', p1, p2, 'p3:', p3, 'p4:', p4);
         return false
     }
 

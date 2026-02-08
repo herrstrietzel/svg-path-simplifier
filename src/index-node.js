@@ -13,17 +13,3 @@ export {
     log, max, min, pow, random, round, sin, sqrt, tan, PI
 } from './constants';
 
-
-
-
-// IIFE 
-if (typeof window !== 'undefined') {
-    window.svgPathSimplify = svgPathSimplify;
-    //window.svgPathSimplify = svgPathSimplify;
-    //window.svgPathSimplify = parsePathDataNormalized;
-    //window.getViewBox = getViewBox;
-    //window.renderPoint = renderPoint;
-}
-
-
-
