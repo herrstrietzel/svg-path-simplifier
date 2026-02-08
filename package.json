@@ -1,6 +1,6 @@
 {
   "name": "svg-path-simplify",
-  "version": "0.1.1",
+  "version": "0.1.2",
 
   "type": "module",
 
@@ -10,7 +10,7 @@
   "exports": {
     ".": {
       "import": "./dist/svg-path-simplify.esm.js",
-      "browser": "./dist/svg-path-simplify.esm.js"
+      "browser": "./dist/svg-path-simplify.min.js"
     },
 
     "./node": {
