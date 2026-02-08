@@ -40,8 +40,10 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
     - [Example 1: parse and simplify (using defaults)](#example-1-parse-and-simplify-using-defaults)
     - [ESM version](#esm-version)
   + [node.js](#nodejs)
+    - [Example 2: Apply options](#example-2-apply-options)
   + [API](#api)
   + [Simplification parameters](#simplification-parameters)
+  + [Advanced simplifications](#advanced-simplifications)
   + [Output options](#output-options)
   + [SVG output optimizations](#svg-output-optimizations)
   + [SVG input normalization](#svg-input-normalization)
@@ -50,7 +52,7 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
   + [Demo files](#demo-files)
 * [Limitations](#limitations)
   + [Optimization of complete SVG files](#optimization-of-complete-svg-files)
-  + [»Natural« limitations of vector/curve simplification](#natural-limitations-of-vector-curve-simplification)
+  + [»Natural« limitations of vector/curve simplification](#natural-limitations-of-vectorcurve-simplification)
   + [The sad truth about »gigantic« SVG files](#the-sad-truth-about-gigantic-svg-files)
 * [Changelog, Updates and rollback](#changelog-updates-and-rollback)
   + [Changelog](#changelog)
@@ -59,7 +61,6 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
 * [Related  libraries](#related-libraries)
 * [Other SVG related projects](#other-svg-related-projects)
 * [Credits](#credits)
-
 
 
 ## Usage 
@@ -225,7 +226,16 @@ These params control shich simplifications are applied. The default settings aim
 | keepExtremes | skips simplification accross x/y extrema – improves shape fidelity | Boolean | true |
 | keepCorners | skips simplification corners – improves shape fidelity | Boolean | true |
 | keepInflections | retains commands introducing direction changes – adds complexity but may help for editing in a graphic application | Boolean | false |
-| addExtremes | adds commands at x/y extrema – adds complexity but may help for editing in a graphic application | Boolean | false |
+
+### Advanced simplifications
+| parameter | effect | type | default |
+| -- | -- | -- | -- |
+| refineExtremes | tries to combine commands close to an adjacent x/y extreme segment | Boolean | false |
+| addExtremes | adds commands at x/y extrema – adds complexity but may help for editing in a graphic application – when using this option enable `refineExtremes` as well to avoid tiny adjacent segments | Boolean | false |
+| simplifyCorners | replaces Bézier segments enclosed by linetos with single quadratic commands – handy to reduce overly complex tiny corner roundings. See example in [webapp](https://herrstrietzel.github.io/svg-path-simplify?samples=fontawesome_gears&refineExtremes=true&simplifyCorners=true) | Boolean | false |
+| cubicToArc | replaces Bézier segments by elliptic arc `A` commands where applicable – can reduce complexity for semi- or full circles | Boolean | false |
+| simplifyRound | replaces small round segments encloses by linetos – helps to simplify shapes like gears/cogs | Boolean | false |
+
 
 ### Output options
 
@@ -257,6 +267,9 @@ These params control shich simplifications are applied. The default settings aim
 ## Demos
 ### Web app
 You can easily test this library via the [**webapp**](https://herrstrietzel.github.io/svg-path-simplify/) or by checking the demo folder. 
+
+![web app](./demo/img/screenshot.png)    
+
 
 ### Demo files
 * [simple setup IIFE](./demo/simple-iife.html)
