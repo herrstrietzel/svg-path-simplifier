@@ -1939,7 +1939,7 @@ function combineCubicPairs(com1, com2, {
     let distAv2 = getDistAv(com2.p0, com2.p);
     let distMin = Math.max(0, Math.min(distAv1, distAv2));
 
-    let distScale = 0.06;
+    let distScale = 0.08;
     let maxDist = distMin * distScale * tolerance;
 
     // get hypothetical combined command
@@ -1973,8 +1973,6 @@ function combineCubicPairs(com1, com2, {
 
         error += dist1;
 
-        // quit - paths not congruent
-
         if (dist1 < maxDist) {
 
             // 1st segment mid
@@ -1984,18 +1982,9 @@ function combineCubicPairs(com1, com2, {
             let ptS_1 = pointAtT([comS.p0, comS.cp1, comS.cp2, comS.p], t2);
             dist2 = getDistAv(pt_1, ptS_1);
 
-            /*
-            if(dist1>tolerance){
-                renderPoint(markers, pt_1, 'blue')
-                renderPoint(markers, ptS_1, 'orange', '0.5%')
-            }
-            */
-
-            // quit - paths not congruent
-            if (dist1 + dist2 < maxDist) success = true;
-
-            // collect error data
             error += dist2;
+            
+            if (error < maxDist) success = true;
 
         }
 
@@ -5247,6 +5236,98 @@ function refineClosingCommand(pathData = [], {
 
 }
 
+/**
+* scale path data proportionaly
+*/
+function scalePathData(pathData, scale = 1) {
+  let pathDataScaled = [];
+
+  for (let i = 0, l = pathData.length; i < l; i++) {
+    let com = pathData[i];
+    let { type, values } = com;
+    let comT = {
+      type: type,
+      values: []
+    };
+
+    switch (type.toLowerCase()) {
+      // lineto shorthands
+      case "h":
+        comT.values = [values[0] * scale]; 
+        break;
+      case "v":
+        comT.values = [values[0] * scale];
+        break;
+
+      // arcto
+      case "a":
+        comT.values = [
+          values[0] * scale, // rx: scale
+          values[1] * scale, // ry: scale
+          values[2], // x-axis-rotation: keep it 
+          values[3], // largeArc: dito
+          values[4], // sweep: dito
+          values[5] * scale, // final x: scale
+          values[6] * scale // final y: scale
+        ];
+        break;
+
+      /**
+      * Other point based commands: L, C, S, Q, T
+      * scale all values
+      */
+      default:
+        if (values.length) {
+          comT.values = values.map((val, i) => {
+            return val * scale;
+          });
+        }
+    }
+    pathDataScaled.push(comT);
+  }  return pathDataScaled;
+}
+
+/**
+ * get viewBox 
+ * either from explicit attribute or
+ * width and height attributes
+ */
+
+function getViewBox(svg = null, decimals = -1) {
+
+    const getUnit=(val)=>{
+        return val && isNaN(val) ? val.match(/[^\d]+/g)[0] : '';
+    };
+
+    // browser default
+    if (!svg) return false
+
+    let hasWidth = svg.hasAttribute('width');
+    let hasHeight = svg.hasAttribute('height');
+    let hasViewBox = svg.hasAttribute('viewBox');
+
+    let widthAtt = hasWidth ? svg.getAttribute('width') : 0;
+    let heightAtt = hasHeight ? svg.getAttribute('height') : 0;
+
+    let widthUnit = hasWidth ? getUnit(widthAtt) : false;
+    let heightUnit = hasHeight ? getUnit(widthAtt) : false;
+
+    let w = widthAtt ? (!widthAtt.includes('%') ? parseFloat(widthAtt) : 0 ) : 300;
+    let h = heightAtt ? (!heightAtt.includes('%') ? parseFloat(heightAtt) : 0 ) : 150;
+
+    let viewBoxVals =  hasViewBox ? svg.getAttribute('viewBox').split(/,| /).filter(Boolean).map(Number) : [0, 0, w, h];
+
+    // round
+    if (decimals>-1) {
+        [w, h] = [w, h].map(val=>+val.toFixed(decimals));
+        viewBoxVals = viewBoxVals.map(val=>+val.toFixed(decimals));
+    }
+
+    let viewBox = { x:viewBoxVals[0] , y:viewBoxVals[1], width:viewBoxVals[2], height:viewBoxVals[3], w, h, hasViewBox, hasWidth, hasHeight, widthUnit, heightUnit };
+
+    return viewBox
+}
+
 function svgPathSimplify(input = '', {
 
     // return svg markup or object
@@ -5283,6 +5364,9 @@ function svgPathSimplify(input = '', {
     removeOrphanSubpaths = false,
 
     simplifyRound = false,
+
+    scale=1,
+    scaleTo=0,
 
     // svg path optimizations
     decimals = 3,
@@ -5386,6 +5470,25 @@ function svgPathSimplify(input = '', {
         let { d, el } = path;
 
         let pathData = parsePathDataNormalized(d, { quadraticToCubic, toAbsolute, arcToCubic });
+
+        // scale pathdata and viewBox
+        if(scale!==1 || scaleTo){
+
+            // get bbox for scaling
+            if(scaleTo){
+
+                let pathDataExtr = pathData.map(com=>{return {type:com.type, values:com.values}});
+                pathDataExtr = addExtremePoints(pathDataExtr);
+                let poly = getPathDataVertices(pathDataExtr);
+                let bb = getPolyBBox(poly);
+
+                let scaleW = scaleTo/bb.width;
+                scale = scaleW;
+
+            }
+
+            pathData = scalePathData(pathData, scale);
+        }
 
         // count commands for evaluation
         let comCount = pathData.length;
@@ -5581,6 +5684,25 @@ function svgPathSimplify(input = '', {
 
             // remove empty groups e.g groups
             removeEmptySVGEls(svg);
+        }
+
+        // adjust viewBox and width for scale
+        if(scale){
+
+            let vB = getViewBox(svg, decimals);
+            let {x,y, width, height, w, h, hasViewBox, hasWidth, hasHeight, widthUnit, heightUnit} = vB;
+            
+            if(hasViewBox){
+                svg.setAttribute('viewBox', [x, y, width, height].map(val=>+(val*scale).toFixed(decimals)).join(' ')  );
+            }
+            if(hasWidth){
+                svg.setAttribute('width', +(w*scale).toFixed(decimals)+widthUnit  );
+            }
+
+            if(hasHeight){
+                svg.setAttribute('height', +(h*scale).toFixed(decimals)+heightUnit  );
+            }
+
         }
 
         svg = stringifySVG(svg);

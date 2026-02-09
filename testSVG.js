@@ -19,7 +19,7 @@ let svgMarkup =
 </svg>`
 
 // try to simplify
-let svgOpt = svgPathSimplify(svgMarkup);
+let svgOpt = svgPathSimplify(svgMarkup, {scaleTo:24});
 
 // simplified pathData
 console.log(svgOpt)

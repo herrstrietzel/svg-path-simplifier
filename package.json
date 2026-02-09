@@ -4,8 +4,9 @@
 
   "type": "module",
 
-  "main": "./dist/svg-path-simplify.node.cjs",
+  "main": "./dist/svg-path-simplify.js",
   "module": "./dist/svg-path-simplify.esm.js",
+  "browser": "./dist/svg-path-simplify.min.js",
 
   "exports": {
     ".": {
@@ -22,9 +23,6 @@
     }
   },
 
-  "browser": {
-    "./dist/svg-path-simplify.node.cjs": "./dist/svg-path-simplify.esm.js"
-  },
 
   "repository": {
     "type": "git",

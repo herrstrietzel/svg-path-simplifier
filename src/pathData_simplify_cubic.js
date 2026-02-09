@@ -123,7 +123,7 @@ export function combineCubicPairs(com1, com2, {
     let distMin = Math.max(0, Math.min(distAv1, distAv2))
 
 
-    let distScale = 0.06
+    let distScale = 0.08
     let maxDist = distMin * distScale * tolerance
 
     // get hypothetical combined command
@@ -140,7 +140,6 @@ export function combineCubicPairs(com1, com2, {
 
     // collect error data
     let error = dist0;
-
 
 
     if (close) {
@@ -160,11 +159,6 @@ export function combineCubicPairs(com1, com2, {
 
         error += dist1;
 
-
-        // quit - paths not congruent
-        //if (dist2 > tolerance) return commands;
-
-
         if (dist1 < maxDist) {
 
             //renderPoint(markers, pt_2, 'magenta')
@@ -172,25 +166,17 @@ export function combineCubicPairs(com1, com2, {
 
             // 1st segment mid
             let pt_1 = pointAtT([com1.p0, com1.cp1, com1.cp2, com1.p], 0.5)
+            //let pt_1_2 = pointAtT([com1.p0, com1.cp1, com1.cp2, com1.p], 1)
+
 
             let t2 = t * 0.5;
             let ptS_1 = pointAtT([comS.p0, comS.cp1, comS.cp2, comS.p], t2)
             dist2 = getDistAv(pt_1, ptS_1)
 
-            /*
-            if(dist1>tolerance){
-                renderPoint(markers, pt_1, 'blue')
-                renderPoint(markers, ptS_1, 'orange', '0.5%')
-            }
-            */
 
-            // quit - paths not congruent
-            if (dist1 + dist2 < maxDist) success = true;
-
-            // collect error data
             error += dist2;
-
-            //console.log('simpl1');
+            
+            if (error < maxDist) success = true;
 
         }
 

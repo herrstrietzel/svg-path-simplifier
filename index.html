@@ -83,7 +83,7 @@
                     </textarea>
                 </label>
 
-                <h3>SVG normalization</h3>
+                <h3>SVG input normalization</h3>
                 <p>
                     <label><input type="checkbox" name="arcToCubic">arcToCubic</label>
                     <label><input type="checkbox" name="quadraticToCubic" checked>quadraticToCubic</label>
@@ -93,6 +93,14 @@
                             data-info="convert shapes like circles, rects to path elements">shapesToPaths</label>
                 </p>
 
+
+                <h3>SVG/path scaling</h3>
+                <p>
+                    <label>Scale <input type="number" value="1" min="0.00001" max="10000" name="scale" step="0.1"></label>
+                </p>
+                <p>
+                    <label>Scale to <input type="number" value="0" name="scaleTo"></label>
+                </p>
 
 
             </aside>
@@ -254,7 +262,7 @@
                 <div class="wrp-zoom"
                     data-zoom='{"minScale":0.1,"maxScale":10,"zoom":1,"zoomStep":1.001, "toolbar":true}'>
 
-                    <svg id="svg" viewBox="0 0 100 100">
+                    <svg id="svg" class="svgO" viewBox="0 0 100 100">
 
                         <path id="path1" class="path pathO" d="M54,40.938C68.946,36.071,72.99,30.492,72.992,27
 	c0.004-5.928-11.632-5.845-1.367,13.938" />

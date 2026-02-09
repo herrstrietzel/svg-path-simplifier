@@ -1,5 +1,12 @@
+.input-wrap-number {
+    width: 100%;
+}
+
+
+
 :root {
     --sidebar-width: clamp(25ch, 45ch, 50ch);
+    --scalePreview: 1;
     --strokeWidthPrev: 0.3%;
 }
 
@@ -275,8 +282,22 @@ canvas {
         padding: 1em;
     }
 
+
+    .svgO .pathO{
+        --strokeWidthPrev: calc(0.3% / var(--scalePreview, 1));
+        transform: scale(var(--scalePreview, 1));
+         /* vector-effect: non-scaling-stroke; */
+    }
+
+    /*     .svgWrap svg, */
+
+
     .path {
         fill: none;
+    }
+
+    .svgO{
+        vector-effect: non-scaling-stroke;
     }
 
     .pathO {

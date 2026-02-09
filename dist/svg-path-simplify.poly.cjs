@@ -23,7 +23,6 @@ class XMLSerializerPoly {
 
 if (!globalThis.XMLSerializer) {
     globalThis.XMLSerializer = XMLSerializerPoly;
-    //console.log('!no XMLSerializer')
 }
 
 exports.XMLSerializerPoly = XMLSerializerPoly;

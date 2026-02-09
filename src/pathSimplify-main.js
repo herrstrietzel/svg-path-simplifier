@@ -23,6 +23,8 @@ import { renderPoint } from './svgii/visualize';
 import { refineRoundedCorners } from './svgii/pathData_simplify_refineCorners';
 import { refineRoundSegments } from './svgii/pathData_refine_round';
 import { refineClosingCommand } from './svgii/pathData_remove_short';
+import { scalePathData } from './svgii/pathData_transform_scale';
+import { getViewBox } from './svg_getViewbox';
 
 //import { installDOMPolyfills } from './dom-polyfill';
 
@@ -64,6 +66,10 @@ export function svgPathSimplify(input = '', {
     removeOrphanSubpaths = false,
 
     simplifyRound = false,
+
+    //svg scaling
+    scale=1,
+    scaleTo=0,
 
 
     // svg path optimizations
@@ -174,6 +180,27 @@ export function svgPathSimplify(input = '', {
         let { d, el } = path;
 
         let pathData = parsePathDataNormalized(d, { quadraticToCubic, toAbsolute, arcToCubic });
+
+        // scale pathdata and viewBox
+        if(scale!==1 || scaleTo){
+
+            // get bbox for scaling
+            if(scaleTo){
+
+                let pathDataExtr = pathData.map(com=>{return {type:com.type, values:com.values}})
+                pathDataExtr = addExtremePoints(pathDataExtr);
+                let poly = getPathDataVertices(pathDataExtr)
+                let bb = getPolyBBox(poly);
+
+                let scaleW = scaleTo/bb.width
+                scale = scaleW;
+                //console.log('scaleW', scaleW);
+            }
+
+
+
+            pathData = scalePathData(pathData, scale)
+        }
 
         // count commands for evaluation
         let comCount = pathData.length
@@ -405,6 +432,25 @@ export function svgPathSimplify(input = '', {
             removeEmptySVGEls(svg);
         }
 
+        // adjust viewBox and width for scale
+        if(scale){
+
+            let vB = getViewBox(svg, decimals)
+            let {x,y, width, height, w, h, hasViewBox, hasWidth, hasHeight, widthUnit, heightUnit} = vB;
+            
+            if(hasViewBox){
+                svg.setAttribute('viewBox', [x, y, width, height].map(val=>+(val*scale).toFixed(decimals)).join(' ')  )
+            }
+            if(hasWidth){
+                svg.setAttribute('width', +(w*scale).toFixed(decimals)+widthUnit  )
+            }
+
+            if(hasHeight){
+                svg.setAttribute('height', +(h*scale).toFixed(decimals)+heightUnit  )
+            }
+            //console.log(vB);
+
+        }
 
 
         svg = stringifySVG(svg);

@@ -15,7 +15,7 @@ window.addEventListener('DOMContentLoaded', (e) => {
 
     // check query strings
     let queryParams = window.location.href.split('?')
-    if(queryParams.length){
+    if (queryParams.length) {
         //let query = settingsToQueryString(settings)
         //let baseUrl = window.location.href.split('?')[0]
 
@@ -24,7 +24,7 @@ window.addEventListener('DOMContentLoaded', (e) => {
         window.history.pushState({}, "", newUrl);
     }
 
-    
+
     //update rendering 
     updateSVG(settings);
 
@@ -108,23 +108,23 @@ function updateSVG(settings = {}) {
     if (!dInput && !samples) return
 
 
-    let exclude = ['defaults', 'storageName', 'showNav', 'getObject', 'dOutput', 'showMarkers' ]
+    let exclude = ['defaults', 'storageName', 'showNav', 'getObject', 'dOutput', 'showMarkers']
 
     // remove defaults from query
     let settingsShare = {};
-    for(let prop in settings){
+    for (let prop in settings) {
         let value = settings[prop];
-        if(defaults[prop]===value || exclude.includes(prop)){
+        if (defaults[prop] === value || exclude.includes(prop)) {
             //console.log('is default', prop);
             continue
         }
 
-        if(prop==='dInput'){
+        if (prop === 'dInput') {
             value = value
-            .replace(/[\n\r|\t|]/g, " ")
-            .replace(/,/g, ' ')
-            .replace(/ +/g, ' ')
-            .trim()
+                .replace(/[\n\r|\t|]/g, " ")
+                .replace(/,/g, ' ')
+                .replace(/ +/g, ' ')
+                .trim()
         }
 
         settingsShare[prop] = value;
@@ -191,8 +191,11 @@ function updateSVG(settings = {}) {
     // incase input was pathdata array
     dInput = dPreview;
 
+    let scale = settings.scale;
+    
     if (!mode) {
         svgEl.classList.remove('dsp-non')
+
 
         if (inputType === 'polyString') dInput = 'M' + dInput;
 
@@ -200,6 +203,12 @@ function updateSVG(settings = {}) {
         pathS.setAttribute('d', d)
 
         adjustViewBox(svgEl);
+
+
+        // scale element
+        svgEl.style.setProperty('--scalePreview', scale)
+
+
     }
 
     // input is svg doc
@@ -221,6 +230,11 @@ function updateSVG(settings = {}) {
 
         svgDocEl.removeAttribute('width')
         svgDocEl.removeAttribute('height')
+
+        // scale element
+        //svgDocEl.style.setProperty('--scalePreview', scale)
+
+
 
     }
 
