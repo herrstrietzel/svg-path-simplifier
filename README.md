@@ -45,6 +45,7 @@ Unlike most existing approaches (e.g in graphic applications), it checks where s
   + [Simplification parameters](#simplification-parameters)
   + [Advanced simplifications](#advanced-simplifications)
   + [Output options](#output-options)
+  + [SVG scaling](#svg-scaling)
   + [SVG output optimizations](#svg-output-optimizations)
   + [SVG input normalization](#svg-input-normalization)
 * [Demos](#demos)
@@ -253,6 +254,14 @@ These params control shich simplifications are applied. The default settings aim
 | toRelative | converts all commands to relative – reduces file size | Boolean | true |
 | toShorthands | converts all commands to shorthand when applicable – reduces file size | Boolean | true |
 
+### SVG scaling
+Scaling only indirectly affects file size analogous to rounding. Use it only for very large or small SVGs. Finding the »sweet spot« where all coordinates can be expressed in integers can reduce file size as no decimal separators are required. 
+
+| parameter | effect | type | default |
+| -- | -- | -- | -- |
+| scale | scales all pathdata, `viewBox`, `width` and `height` attributes | Boolean | true |
+| scaleTo | scales to a specified max width | Boolean | false |
+
 
 ### SVG input normalization
 | parameter | effect | type | default |
@@ -274,6 +283,7 @@ You can easily test this library via the [**webapp**](https://herrstrietzel.gith
 ### Demo files
 * [simple setup IIFE](./demo/simple-iife.html)
 * [simple setup esm](./demo/simple-esm.html)  
+* [codepen](https://codepen.io/herrstrietzel/pen/PwzxpoE)
 
 
 

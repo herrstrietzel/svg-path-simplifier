@@ -448,7 +448,6 @@ export function svgPathSimplify(input = '', {
             if(hasHeight){
                 svg.setAttribute('height', +(h*scale).toFixed(decimals)+heightUnit  )
             }
-            //console.log(vB);
 
         }
 

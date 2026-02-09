@@ -620,6 +620,50 @@ export function bezierhasExtreme(p0, cpts = [], angleThreshold = 0.05) {
 }
 
 
+export function getSemiExtremesT(p0, cp1, cp2, p, angleRad=Math.PI/2) {
+    // Rotate all points by -angleRad
+    let cos = Math.cos(-angleRad);
+    let sin = Math.sin(-angleRad);
+    
+    const rotatePoint = (point) => ({
+        x: point.x * cos - point.y * sin,
+        y: point.x * sin + point.y * cos
+    });
+    
+    let p0Rot = rotatePoint(p0);
+    let cp1Rot = rotatePoint(cp1);
+    let cp2Rot = rotatePoint(cp2);
+    let pRot = rotatePoint(p);
+    
+    // Now find x-extrema in rotated coordinate system
+    // These correspond to points where original tangent angle = angleRad
+    
+    let a = -3 * p0Rot.x + 9 * cp1Rot.x - 9 * cp2Rot.x + 3 * pRot.x;
+    let b = 6 * p0Rot.x - 12 * cp1Rot.x + 6 * cp2Rot.x;
+    let c = 3 * cp1Rot.x - 3 * p0Rot.x;
+    
+    let extremes = [];
+    
+    if (Math.abs(a) < 1e-12) {
+        if (Math.abs(b) > 1e-12) {
+            let t = -c / b;
+            if (t > 0 && t < 1) extremes.push(t);
+        }
+        return extremes;
+    }
+    
+    let discriminant = b * b - 4 * a * c;
+    if (discriminant >= 0) {
+        let sqrtDisc = Math.sqrt(discriminant);
+        let t1 = (-b + sqrtDisc) / (2 * a);
+        let t2 = (-b - sqrtDisc) / (2 * a);
+        
+        if (t1 > 0 && t1 < 1) extremes.push(t1);
+        if (t2 > 0 && t2 < 1) extremes.push(t2);
+    }
+    
+    return extremes;
+}
 
 export function getBezierExtremeT(pts) {
     let tArr = pts.length === 4 ? cubicBezierExtremeT(pts[0], pts[1], pts[2], pts[3]) : quadraticBezierExtremeT(pts[0], pts[1], pts[2]);
