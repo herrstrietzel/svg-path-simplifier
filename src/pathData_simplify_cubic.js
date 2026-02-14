@@ -1,5 +1,5 @@
 import { getCombinedByDominant } from "./pathData_simplify_cubic_extrapolate";
-import { getDistance, getSquareDistance, checkLineIntersection, pointAtT, getDistAv, interpolate } from "./svgii/geometry";
+import { getDistance, getSquareDistance, checkLineIntersection, pointAtT, interpolate, getDistManhattan } from "./svgii/geometry";
 import { getBezierArea, getPolygonArea } from "./svgii/geometry_area";
 import { renderPoint } from "./svgii/visualize";
 
@@ -22,10 +22,11 @@ export function simplifyPathDataCubic(pathData, {
         let typeN = comN?.type || null;
         //let isCornerN = comN?.corner || null;
         //let isExtremeN = comN?.extreme || null;
-        let isDirChange = com?.directionChange || null;
-        let isDirChangeN = comN?.directionChange || null;
 
-        let { type, values, p0, p, cp1 = null, cp2 = null, extreme = false, corner = false, dimA = 0 } = com;
+        let { type, values, p0, p, cp1 = null, cp2 = null, extreme = false, directionChange = false, corner = false, dimA = 0 } = com;
+
+        //let isDirChange = com?.directionChange || null;
+        //let isDirChangeN = comN?.directionChange || null;
 
 
         // next is also cubic
@@ -33,9 +34,10 @@ export function simplifyPathDataCubic(pathData, {
 
             // cannot be combined as crossing extremes or corners
             if (
-                (keepInflections && isDirChangeN) ||
+                //(keepInflections && isDirChangeN) ||
                 (keepCorners && corner) ||
-                (!isDirChange && keepExtremes && extreme)
+                //(!isDirChange && keepExtremes && extreme)
+                (keepExtremes && extreme)
             ) {
                 //renderPoint(markers, p, 'red', '1%')
                 pathDataN.push(com)
@@ -44,8 +46,11 @@ export function simplifyPathDataCubic(pathData, {
             // try simplification
             else {
                 //renderPoint(markers, p, 'magenta', '1%')
-                let combined = combineCubicPairs(com, comN, {tolerance})
+                let combined = combineCubicPairs(com, comN, { tolerance })
                 let error = 0;
+
+                //!count simplification success or failure - just for debugging
+                //let log = [];
 
                 // combining successful! try next segment
                 if (combined.length === 1) {
@@ -54,15 +59,16 @@ export function simplifyPathDataCubic(pathData, {
 
                     // add cumulative error to prevent distortions
                     error += com.error;
-                    //console.log('!error', error);
+
+                    //!log.push(`success1: ${i} and ${i + 1}`)
 
                     // find next candidates
-                    //offset<2 &&
                     for (let n = i + 1; error < tolerance && n < l; n++) {
                         let comN = pathData[n]
+
                         if (comN.type !== 'C' ||
                             (
-                                (keepInflections && comN.directionChange) ||
+                                (keepInflections && com.directionChange) ||
                                 (keepCorners && com.corner) ||
                                 (keepExtremes && com.extreme)
                             )
@@ -70,20 +76,33 @@ export function simplifyPathDataCubic(pathData, {
                             break
                         }
 
-                        let combined = combineCubicPairs(com, comN, {tolerance})
-                        if (combined.length === 1) {
-                            // add cumulative error to prevent distortions
-                            //console.log('combined', combined);
-                            error += combined[0].error * 0.5;
-                            //error += combined[0].error * 1;
-                            offset++
+                        let combined = combineCubicPairs(com, comN, { tolerance })
+
+                        // failure - could not be combined - exit loop
+                        if (combined.length > 1) {
+                            //log.push(`fail: ${i} and ${n}`)
+                            break
                         }
+
+                        /**
+                         * success
+                         * add cumulative error to prevent distortions
+                         */
+                        error += combined[0].error * 0.5;
+                        offset++
+
+                        //!log.push(`success2: ${i} and ${n}`)
+
+                        // return combined
                         com = combined[0]
                     }
+
+                    //console.log('tests', log, offset);
 
                     //com.opt = true
                     pathDataN.push(com)
 
+                    // skip to next candidates
                     if (i < l) {
                         i += offset
                     }
@@ -118,8 +137,11 @@ export function combineCubicPairs(com1, com2, {
     // assume 2 segments are result of a segment split
     let t = findSplitT(com1, com2);
 
-    let distAv1 = getDistAv(com1.p0, com1.p);
-    let distAv2 = getDistAv(com2.p0, com2.p);
+    // quit if t is start
+    if (!t) return commands;
+
+    let distAv1 = getDistManhattan(com1.p0, com1.p);
+    let distAv2 = getDistManhattan(com2.p0, com2.p);
     let distMin = Math.max(0, Math.min(distAv1, distAv2))
 
 
@@ -133,7 +155,7 @@ export function combineCubicPairs(com1, com2, {
     let pt = pointAtT([comS.p0, comS.cp1, comS.cp2, comS.p], t)
 
 
-    let dist0 = getDistAv(com1.p, pt)
+    let dist0 = getDistManhattan(com1.p, pt)
     let dist1 = 0, dist2 = 0;
     let close = dist0 < maxDist;
     let success = false;
@@ -155,7 +177,7 @@ export function combineCubicPairs(com1, com2, {
         // simplified path
         let t3 = (1 + t) * 0.5;
         let ptS_2 = pointAtT([comS.p0, comS.cp1, comS.cp2, comS.p], t3)
-        dist1 = getDistAv(pt_2, ptS_2)
+        dist1 = getDistManhattan(pt_2, ptS_2)
 
         error += dist1;
 
@@ -166,16 +188,13 @@ export function combineCubicPairs(com1, com2, {
 
             // 1st segment mid
             let pt_1 = pointAtT([com1.p0, com1.cp1, com1.cp2, com1.p], 0.5)
-            //let pt_1_2 = pointAtT([com1.p0, com1.cp1, com1.cp2, com1.p], 1)
-
 
             let t2 = t * 0.5;
             let ptS_1 = pointAtT([comS.p0, comS.cp1, comS.cp2, comS.p], t2)
-            dist2 = getDistAv(pt_1, ptS_1)
-
+            dist2 = getDistManhattan(pt_1, ptS_1)
 
             error += dist2;
-            
+
             if (error < maxDist) success = true;
 
         }
@@ -191,10 +210,11 @@ export function combineCubicPairs(com1, com2, {
         comS.p0 = com1.p0
         comS.p = com2.p
 
-        comS.dimA = getDistAv(comS.p0, comS.p);
+        comS.dimA = getDistManhattan(comS.p0, comS.p);
         comS.type = 'C';
         comS.extreme = com2.extreme;
         comS.directionChange = com2.directionChange;
+        //comS.directionChange = com1.directionChange ? true : (com2.directionChange);
         comS.corner = com2.corner;
 
         comS.values = [comS.cp1.x, comS.cp1.y, comS.cp2.x, comS.cp2.y, comS.p.x, comS.p.y]
@@ -264,15 +284,38 @@ export function getBezierCommandArea(commands = [com1, com2], absolute = true) {
 }
 
 
+
 export function findSplitT(com1, com2) {
+    // distances between 1st and 2nd segment cpt to mid point
+    let l1 = getDistManhattan(com1.cp2, com1.p)
 
-    let len3 = getDistance(com1.cp2, com1.p)
-    let len4 = getDistance(com1.cp2, com2.cp1)
+    // exit for zero length control point vectors
+    if (l1 === 0) {
+        //console.log('!quit1');
+        return 0;
+    }
 
-    let t = Math.min(len3) / len4
+    let l2 = getDistManhattan(com1.p, com2.cp1)
+    if (l2 === 0) {
+        //console.log('!quit2');
+        return 0;
+    }
 
-    return t
+    // dist between both segments' control points
+    let l3 = getDistManhattan(com1.cp2, com2.cp1)
+
+    /*
+    // exit for zero length control point vectors
+    if(l1===0 || l2===0 || l1===l3 || l2===l3) {
+        console.log('!quit');
+        return 0;
+    }
+    */
+
+    return l1 / l3
 }
+
+
 
 
 

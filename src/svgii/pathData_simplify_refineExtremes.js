@@ -1,6 +1,6 @@
 import { findSplitT, getExtrapolatedCommand } from "../pathData_simplify_cubic";
 import { getCombinedByDominant } from "../pathData_simplify_cubic_extrapolate";
-import { getDistAv, interpolate } from "./geometry";
+import { bezierhasExtreme, checkLineIntersection, getDistAv, getDistManhattan, getSquareDistance, interpolate } from "./geometry";
 import { getPathArea, getPolygonArea } from "./geometry_area";
 import { getPathDataBBox } from "./geometry_bbox";
 import { interpolatedPathData } from "./pathData_interpolate";
@@ -11,10 +11,14 @@ export function refineAdjacentExtremes(pathData, {
     threshold = null, tolerance = 1
 } = {}) {
 
+    //console.log('!!!refineAdjacentExtremes', pathData);
+
+
     //dimA = dimA ? dimA : 
     if (!threshold) {
         let bb = getPathDataBBox(pathData);
-        threshold = (bb.width + bb.height) / 2 * 0.05
+        //threshold = (bb.width + bb.height) / 2 * 0.05
+        threshold = (bb.width + bb.height) * 0.05
         //console.log('new threshold', threshold);
     }
 
@@ -32,28 +36,30 @@ export function refineAdjacentExtremes(pathData, {
 
 
         // check dist
-        let diff = comN ? getDistAv(p, comN.p) : Infinity;
+        //threshold = threshold*1.05
+        let diff = comN ? getDistManhattan(p, comN.p) : Infinity;
         let isCose = diff < threshold;
 
-        let diff2 = comN2 ? getDistAv(comN2.p, comN.p) : Infinity
-        let isCose2 = diff2 < threshold;
+        let diff2 = comN2 ? getDistManhattan(comN2.p, comN.p) : Infinity
+        let isCose2 = diff2 < threshold*1;
 
+        //let selfIntersecting = false
 
         // next is extreme
-        if (comN && type === 'C' && comN.type === 'C' && extreme && comN2 && comN2.extreme) {
+        if (comN && comN2 && type === 'C' && comN.type === 'C' && extreme && comN2.extreme) {
 
+            //renderPoint(markers, comN.p)
 
             if (isCose2 || isCose) {
 
                 // extrapolate
                 let comEx = getCombinedByDominant(comN, comN2, threshold, tolerance, false)
-                //console.log('comEx', comEx);
-                //renderPoint(markers, comN.p)
 
                 if (comEx.length === 1) {
 
-                    pathData[i + 1] = null;
                     comEx = comEx[0]
+
+                    pathData[i + 1] = null;
 
                     pathData[i + 2].values = [comEx.cp1.x, comEx.cp1.y, comEx.cp2.x, comEx.cp2.y, comEx.p.x, comEx.p.y]
                     pathData[i + 2].cp1 = comEx.cp1
@@ -71,78 +77,21 @@ export function refineAdjacentExtremes(pathData, {
 
 
         // short after extreme
-
-        if (comN && type === 'C' && comN.type === 'C' && extreme ) {
+        if (comN && type === 'C' && comN.type === 'C' && extreme) {
 
             if (isCose) {
 
-                //renderPoint(markers, com.p, 'cyan', '1%', '0.5')
-                //renderPoint(markers, comN.p, 'cyan', '1%', '0.5')
-                //console.log(comN);
-                //console.log(diff, threshold);
-
-                let dx1 = (com.cp1.x - comN.p0.x)
-                let dy1 = (com.cp1.y - comN.p0.y)
-
-                let horizontal = Math.abs(dy1) < Math.abs(dx1);
-
-                let pN = comN.p;
-                let ptI;
-                let t = 1;
-
-                let area0 = getPolygonArea([com.p0, com.p , comN.p])
+                let area0 = getPolygonArea([com.p0, com.p, comN.p])
                 // cpts area
                 let area1 = getPolygonArea([com.p0, com.cp1, com.cp2, com.p])
 
                 // sign change: is corner => skip
-                if ( (area0<0 && area1>0)  || (area0>0 && area1<0)) {
+                if ((area0 < 0 && area1 > 0) || (area0 > 0 && area1 < 0)) {
                     //renderPoint(markers, com.p, 'orange', '1%', '0.5')
                     continue;
                 }
-
-                
-                if (comN.extreme) {
-
-                    // extend cp2
-                    if (horizontal) {
-                        t = Math.abs(Math.abs(comN.cp2.x - comN.p.x) / Math.abs(com.cp2.x - com.p.x))
-                        t = Math.min(1, t)
-                        //console.log('t', t);
-
-                        ptI = interpolate(comN.p, com.cp2, 1 + t)
-                        com.cp2.x = ptI.x
-                        //renderPoint(markers, com.cp2, 'cyan', '1%', '0.5')
-                        //renderPoint(markers, ptI, 'orange', '1%', '0.5')
-                    }
-                    else {
-                        //renderPoint(markers, comN.p0, 'cyan', '1%', '0.5')
-                        t = Math.abs(Math.abs(comN.cp2.y - comN.p.y) / Math.abs(com.cp2.y - com.p.y))
-                        t = Math.min(1, t)
-                        //console.log('t v', t);
-
-                        ptI = interpolate(comN.p, com.cp2, 1 + t)
-                        com.cp2.y = ptI.y
-                    }
-
-                    //merge commands
-                    pathData[i + 1].values = [com.cp1.x, com.cp1.y, com.cp2.x, com.cp2.y, pN.x, pN.y]
-                    pathData[i + 1].cp1 = com.cp1
-                    pathData[i + 1].cp2 = com.cp2
-                    pathData[i + 1].p0 = com.p0
-                    pathData[i + 1].p = pN
-                    pathData[i + 1].extreme = true
-
-                    // nullify 1st
-                    pathData[i] = null;
-                    continue
-
-                }
-
             }
         }
-
-        /*
-        */
 
 
     }
@@ -175,21 +124,13 @@ export function refineAdjacentExtremes(pathData, {
 
 
 
-    let diff = getDistAv(lastCom.p0, lastCom.p)
+    let diff = getDistManhattan(lastCom.p0, lastCom.p)
     let isCose = diff < threshold;
 
 
     if (penultimateCom && penultimateCom.type === 'C' && isCose && isClosingTo && fistExt) {
 
-        //let dx1 = Math.abs(fistExt.cp1.x - M.x)
-        //let dy1 = Math.abs(fistExt.cp1.y - M.y)
-
-        //let horizontal = dy1 < dx1;
-        //console.log(dx1, dx2);
-        //console.log('isCose', isCose, diff, dimA);
-
         let comEx = getCombinedByDominant(penultimateCom, lastCom, threshold, tolerance, false)
-        //console.log('comEx', comEx);
 
         if (comEx.length === 1) {
             pathData[lastIdx - 1] = comEx[0];

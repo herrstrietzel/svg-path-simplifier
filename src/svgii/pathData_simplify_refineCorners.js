@@ -1,4 +1,4 @@
-import { checkLineIntersection, getDistAv, getSquareDistance, interpolate, pointAtT } from "./geometry";
+import { checkLineIntersection, getDistManhattan, getSquareDistance, interpolate, pointAtT } from "./geometry";
 import { getPolygonArea } from "./geometry_area";
 import { commandIsFlat } from "./geometry_flatness";
 import { renderPoint } from "./visualize";
@@ -33,7 +33,7 @@ export function refineRoundedCorners(pathData, {
     //console.log('lastIsLine', lastIsLine, 'firstIsLine', firstIsLine, 'lastIsBez', lastIsBez, 'firstIsBez', firstIsBez, 'isClosed', isClosed, 'comLast1', comLast1);
 
     let normalizeClose = isClosed && firstIsBez && (lastIsLine || zIsLineto);
-    let adjustStart = false
+    //let adjustStart = false
     //normalizeClose = false
     //console.log('normalizeClose', normalizeClose);
 
@@ -96,13 +96,14 @@ export function refineRoundedCorners(pathData, {
             if (comL1) {
 
                 // linetos
-                let len1 = getDistAv(comL0.p0, comL0.p)
-                let len2 = getDistAv(comL1.p0, comL1.p)
+                let len1 = getDistManhattan(comL0.p0, comL0.p)
+                let len2 = getDistManhattan(comL1.p0, comL1.p)
 
                 // bezier
                 //comBez = comBez[0];
                 let comBezLen = comBez.length;
-                let len3 = getDistAv(comBez[0].p0, comBez[comBezLen - 1].p)
+                //let len3 = getDistManhattan(comBez[0].p0, comBez[comBezLen - 1].p)
+                let len3 = getDistManhattan(comL0.p, comL1.p0)
 
                 // check concaveness by area sign change
                 let area1 = getPolygonArea([comL0.p0, comL0.p, comL1.p0, comL1.p], false)
@@ -115,6 +116,7 @@ export function refineRoundedCorners(pathData, {
                 let bezThresh = len3*0.5 * tolerance
                 let isSmall = bezThresh < len1 && bezThresh < len2 ;
 
+
                 //len1 > len3 && len2 > len3
                 if (comBez.length && !signChange &&  isSmall ) {
 
@@ -125,17 +127,21 @@ export function refineRoundedCorners(pathData, {
 
                         // final check: mid point proximity
                         let ptM = pointAtT([comL0.p, ptQ, comL1.p0], 0.5)
-                        //renderPoint(markers, ptM, 'red', '0.5%', '0.5')
 
                         let ptM_bez = comBez.length===1 ? pointAtT( [comBez[0].p0, comBez[0].cp1, comBez[0].cp2, comBez[0].p], 0.5 ) : comBez[0].p ;
 
-                        let dist1 = getDistAv(ptM, ptM_bez)
+                        let dist1 = getDistManhattan(ptM, ptM_bez) * 0.75
 
-                        // not in tolerance – rturn original command
-                        if(dist1>len3){
+                        //renderPoint(markers, ptM, 'red', '0.5%', '0.5')
+                        //renderPoint(markers, ptM_bez, 'green', '0.5%', '0.5')
+
+                        // not in tolerance – return original command
+                        if(bezThresh && dist1>bezThresh && dist1>len3*0.3){
                             //renderPoint(markers, ptM_bez, 'cyan', '0.5%', '0.5')
                             //renderPoint(markers, ptQ, 'magenta', '0.5%', '0.5')
                             pathDataN.push(com);
+                            continue;
+
                         } else{
 
                             //renderPoint(markers, ptQ, 'magenta', '0.5%', '0.5')
@@ -148,6 +154,9 @@ export function refineRoundedCorners(pathData, {
                             // add quadratic command
                             pathDataN.push(comL0, comQ);
                             i += offset;
+                            //i++
+
+                            //offset++
                             continue;
                         }
 

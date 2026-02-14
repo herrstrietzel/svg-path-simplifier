@@ -1,6 +1,6 @@
 {
   "name": "svg-path-simplify",
-  "version": "0.1.4",
+  "version": "0.1.5",
 
   "type": "module",
 
@@ -32,15 +32,13 @@
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c --watch",
-    "test": "node testSVG.js",
-    "debug": "node debug.cjs",
-    "test1": "node test.js"
+    "test": "node tests/testSVG.js",
+    "test1": "node tests/test.js"
   },
 
   "keywords": [
     "bezier-simplification",
     "svg-minification",
-    "simplification",
     "svg"
   ],
 

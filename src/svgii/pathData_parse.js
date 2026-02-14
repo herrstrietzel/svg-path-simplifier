@@ -150,38 +150,77 @@ paramCountsArr[0x5A] = 0
 paramCountsArr[0x7A] = 0
 
 
+const SPECIAL_SPACES = new Set([
+    0x1680, 0x180E, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
+    0x2007, 0x2008, 0x2009, 0x200A, 0x202F, 0x205F, 0x3000, 0xFEFF
+]);
+
+
+const isSpace = (ch) => {
+    return (ch === 0x20) || (ch === 0x002C) || // White spaces or comma
+        (ch === 0x0A) || (ch === 0x0D) ||   // nl cr
+        (ch === 0x2028) || (ch === 0x2029) || // Line terminators
+        (ch === 0x09) || (ch === 0x0B) || (ch === 0x0C) || (ch === 0xA0) ||
+        (ch >= 0x1680 && SPECIAL_SPACES.has(ch));
+}
+
+
+const sanitizeArc = (val='', valueIndex=0) => {
+    let valLen = val.length;
+
+    // large arc and sweep
+    if (valueIndex === 3 && valLen === 2) {
+        //console.log('large arc sweep combined', val, +val[0], +val[1]);
+        val = [+val[0], +val[1]];
+        valueIndex++
+    }
+
+    // sweep and final
+    else if (valueIndex === 4 && valLen > 1) {
+        //console.log('sweep and final', val, val[0], val[1]);
+        val = [+val[0], +val.substring(1)];
+        valueIndex++
+    }
+
+    // large arc, sweep and final pt combined
+    else if (valueIndex === 3 && valLen >= 3) {
+        //console.log('large arc, sweep and final pt combined', val);
+        val = [+val[0], +val[1], +val.substring(2)];
+        valueIndex += 2
+    }
+    else{
+        val = [+val]
+    }
+
+    //console.log('val arc', val);
+    return {val,valueIndex} ;
+
+}
+
+
 
 export function parsePathDataString(d, debug = true) {
     d = d.trim();
 
-    if (d === '') {
-        return {
-            pathData: [],
-            hasRelatives: false,
-            hasShorthands: false,
-            hasQuadratics: false,
-            hasArcs: false
-        }
+    let pathDataObj = {
+        pathData: [],
+        hasRelatives: false,
+        hasShorthands: false,
+        hasArcs: false,
+        hasQuadratics: false,
+        isPolygon: false,
+        log:[]
     }
 
-    const SPECIAL_SPACES = new Set([
-        0x1680, 0x180E, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
-        0x2007, 0x2008, 0x2009, 0x200A, 0x202F, 0x205F, 0x3000, 0xFEFF
-    ]);
 
-
-    const isSpace = (ch) => {
-        return (ch === 0x20) || (ch === 0x002C) || // White spaces or comma
-            (ch === 0x0A) || (ch === 0x0D) ||   // nl cr
-            (ch === 0x2028) || (ch === 0x2029) || // Line terminators
-            (ch === 0x09) || (ch === 0x0B) || (ch === 0x0C) || (ch === 0xA0) ||
-            (ch >= 0x1680 && SPECIAL_SPACES.has(ch));
+    if (d === '') {
+        return pathDataObj
     }
 
 
     let i = 0, len = d.length;
     let lastCommand = "";
-    let pathData = [];
+    //let pathData = [];
     let itemCount = -1;
     let val = '';
     let wasE = false;
@@ -193,7 +232,7 @@ export function parsePathDataString(d, debug = true) {
 
 
     // collect errors 
-    let log = [];
+    //let log = [];
     let feedback;
 
     const addSeg = () => {
@@ -204,7 +243,7 @@ export function parsePathDataString(d, debug = true) {
             if (lastCommand === 'M') lastCommand = 'L';
             else if (lastCommand === 'm') lastCommand = 'l';
 
-            pathData.push({ type: lastCommand, values: [] });
+            pathDataObj.pathData.push({ type: lastCommand, values: [] });
 
             itemCount++;
             valueIndex = 0;
@@ -221,11 +260,11 @@ export function parsePathDataString(d, debug = true) {
             if (debug && itemCount === -1) {
 
                 feedback = 'Pathdata must start with M command'
-                log.push(feedback)
+                pathDataObj.log.push(feedback)
 
                 // add M command to collect subsequent errors
                 lastCommand = 'M'
-                pathData.push({ type: lastCommand, values: [] });
+                pathDataObj.pathData.push({ type: lastCommand, values: [] });
                 maxParams = 2;
                 valueIndex = 0
                 itemCount++
@@ -233,17 +272,17 @@ export function parsePathDataString(d, debug = true) {
             }
 
             if (lastCommand === 'A' || lastCommand === 'a') {
-                val = sanitizeArc()
+                ({val,valueIndex}  = sanitizeArc(val, valueIndex));
                 //console.log('arc', val);
-                pathData[itemCount].values.push(...val);
+                pathDataObj.pathData[itemCount].values.push(...val);
 
             } else {
                 // error: leading zeroes
                 if (debug && val[1] && val[1] !== '.' && val[0] === '0') {
                     feedback = `${itemCount}. command: Leading zeros not valid: ${val}`
-                    log.push(feedback)
+                    pathDataObj.log.push(feedback)
                 }
-                pathData[itemCount].values.push(+val);
+                pathDataObj.pathData[itemCount].values.push(+val);
             }
 
             valueIndex++;
@@ -256,54 +295,21 @@ export function parsePathDataString(d, debug = true) {
         }
     }
 
-    const sanitizeArc = () => {
-
-        let valLen = val.length;
-        let arcSucks = false;
-
-        // large arc and sweep
-        if (valueIndex === 3 && valLen === 2) {
-            //console.log('large arc sweep combined', val, +val[0], +val[1]);
-            val = [+val[0], +val[1]];
-            arcSucks = true
-            valueIndex++
-        }
-
-        // sweep and final
-        else if (valueIndex === 4 && valLen > 1) {
-            //console.log('sweep and final', val, val[0], val[1]);
-            val = [+val[0], +val[1]];
-            arcSucks = true
-            valueIndex++
-        }
-
-        // large arc, sweep and final pt combined
-        else if (valueIndex === 3 && valLen >= 3) {
-            //console.log('large arc, sweep and final pt combined', val);
-            val = [+val[0], +val[1], +val.substring(2)];
-            arcSucks = true
-            valueIndex += 2
-        }
-
-        //console.log('val arc', val);
-        return !arcSucks ? [+val] : val;
-
-    }
 
     const validateCommand = () => {
 
         if (itemCount > 0) {
-            let lastCom = pathData[itemCount];
+            let lastCom = pathDataObj.pathData[itemCount];
             let valLen = lastCom.values.length;
 
             if ((valLen && valLen < maxParams) || (valLen && valLen > maxParams) || ((lastCommand === 'z' || lastCommand === 'Z') && valLen > 0)) {
                 let diff = maxParams - valLen;
                 feedback = `${itemCount}. command of type "${lastCommand}": ${diff} values too few - ${maxParams} expected`;
 
-                let prevFeedback = log[log.length - 1];
+                let prevFeedback = pathDataObj.log[log.length - 1];
 
                 if (prevFeedback !== feedback) {
-                    log.push(feedback)
+                    pathDataObj.log.push(feedback)
                 }
             }
         }
@@ -313,12 +319,11 @@ export function parsePathDataString(d, debug = true) {
     let isE = false;
     let isMinusorPlus = false;
     let isDot = false;
-
+    let charCode='';
 
     while (i < len) {
 
-        let charCode = d.charCodeAt(i);
-
+        charCode = d.charCodeAt(i);
 
         let isDigit = (charCode > 47 && charCode < 58);
         if (!isDigit) {
@@ -399,7 +404,7 @@ export function parsePathDataString(d, debug = true) {
 
             if (!isValid) {
                 feedback = `${itemCount}. command "${d[i]}" is not a valid type`;
-                log.push(feedback);
+                pathDataObj.log.push(feedback);
                 i++
                 continue
             }
@@ -407,7 +412,7 @@ export function parsePathDataString(d, debug = true) {
 
             // command is concatenated without whitespace
             if (val !== '') {
-                pathData[itemCount].values.push(+val);
+                pathDataObj.pathData[itemCount].values.push(+val);
                 valueIndex++;
                 val = '';
             }
@@ -419,18 +424,18 @@ export function parsePathDataString(d, debug = true) {
             lastCommand = d[i];
             maxParams = paramCountsArr[charCode];
             let isM = lastCommand === 'M' || lastCommand === 'm'
-            let wasClosePath = itemCount > 0 && (pathData[itemCount].type === 'z' || pathData[itemCount].type === 'Z')
+            let wasClosePath = itemCount > 0 && (pathDataObj.pathData[itemCount].type === 'z' || pathDataObj.pathData[itemCount].type === 'Z')
 
             foundCommands.add(lastCommand);
 
             // add omitted M command after Z
             if (wasClosePath && !isM) {
-                pathData.push({ type: 'm', values: [0, 0] });
+                pathDataObj.pathData.push({ type: 'm', values: [0, 0] });
                 itemCount++;
             }
 
             // init new command
-            pathData.push({ type: lastCommand, values: [] });
+            pathDataObj.pathData.push({ type: lastCommand, values: [] });
             itemCount++;
 
             // reset counters
@@ -446,7 +451,7 @@ export function parsePathDataString(d, debug = true) {
         // exceptions - prevent infinite loop
         if (!isDigit) {
             feedback = `${itemCount}. ${d[i]} is not a valid separarator or token`;
-            log.push(feedback);
+            pathDataObj.log.push(feedback);
             val = '';
         }
 
@@ -460,8 +465,8 @@ export function parsePathDataString(d, debug = true) {
 
 
     // return error log
-    if (debug && log.length) {
-        feedback = 'Invalid path data:\n' + log.join('\n')
+    if (debug && pathDataObj.log.length) {
+        feedback = 'Invalid path data:\n' + pathDataObj.log.join('\n')
         if (debug === 'log') {
             console.log(feedback);
         } else {
@@ -470,7 +475,7 @@ export function parsePathDataString(d, debug = true) {
         }
     }
 
-    pathData[0].type = 'M'
+    pathDataObj.pathData[0].type = 'M'
 
     /**
      * check if absolute/relative or 
@@ -479,19 +484,15 @@ export function parsePathDataString(d, debug = true) {
      */
     //check types relative arcs or quadratics
     let commands = Array.from(foundCommands).join('');
-    let hasRelatives = /[lcqamts]/g.test(commands);
-    let hasShorthands = /[vhst]/gi.test(commands);
-    let hasArcs = /[a]/gi.test(commands);
-    let hasQuadratics = /[qt]/gi.test(commands);
 
+    pathDataObj.hasRelatives = /[lcqamts]/g.test(commands);
+    pathDataObj.hasShorthands = /[vhst]/gi.test(commands);
+    pathDataObj.hasArcs = /[a]/gi.test(commands);
+    pathDataObj.hasQuadratics = /[qt]/gi.test(commands);
+    pathDataObj.isPolygon = /[cqats]/gi.test(commands) ? false : true;
 
-    return {
-        pathData,
-        hasRelatives,
-        hasShorthands,
-        hasQuadratics,
-        hasArcs
-    }
+    return pathDataObj
+
 
 }
 

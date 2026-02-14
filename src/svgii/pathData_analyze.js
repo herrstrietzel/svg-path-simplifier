@@ -1,19 +1,304 @@
 import { splitSubpaths } from './pathData_split.js';
-import { getAngle, bezierhasExtreme, getPathDataVertices, svgArcToCenterParam, getSquareDistance, getDistAv } from "./geometry.js";
+import { getAngle, bezierhasExtreme, getPathDataVertices, svgArcToCenterParam, getSquareDistance, getDistManhattan, isMultipleOf45, pointAtT } from "./geometry.js";
 import { getPolygonArea, getPathArea } from './geometry_area.js';
 import { getPolyBBox } from './geometry_bbox.js';
 import { renderPoint, renderPath } from "./visualize.js";
 import { commandIsFlat } from './geometry_flatness.js';
 
 
+/**
+ * create pathdata super set 
+ * including geometrical properties such as:
+ * start and end points
+ * segment square distances and areas
+ * elliptic arc parameters
+ */
+export function getPathDataVerbose(pathData, {
+    addSquareLength = true,
+    addArea = false,
+    addArcParams = false,
+    addAverageDim = true
+} = {}) {
+
+    // initial starting point coordinates
+    let com0 = pathData[0];
+    let M = { x: com0.values[0], y: com0.values[1] };
+    let p0 = M;
+    let p = M;
+
+    com0.p0 = p0;
+    com0.p = p;
+    com0.idx = 0
+    com0.dimA = 0
+
+
+    let len = pathData.length;
+    let pathDataVerbose = [com0];
+
+    for (let i = 1; i < len; i++) {
+        let com = pathData[i];
+        let { type, values } = com;
+        let valuesLen = values.length;
+
+        p = valuesLen ? { x: values[valuesLen - 2], y: values[valuesLen - 1] } : M;
+        let cp1, cp2;
+
+        // add on-path points
+        com.p0 = p0;
+        com.p = p;
+        com.dimA = getDistManhattan(p0, p)
+
+        // update M for Z starting points
+        if (type === 'M') {
+            M = p;
+        }
+
+        // add bezier control point properties
+        if (type === 'Q' || type === 'C') {
+            cp1 = { x: values[0], y: values[1] }
+            cp2 = type === 'C' ? { x: values[2], y: values[3] } : null;
+            com.cp1 = cp1;
+            if (cp2) {
+                com.cp2 = cp2;
+            }
+        }
+
+        else if (type === 'A') {
+            let { rx, ry, cx, cy, startAngle, endAngle, deltaAngle } = svgArcToCenterParam(p0.x, p0.y, ...values)
+            com.cx = cx
+            com.cy = cy
+            com.rx = rx
+            com.ry = ry
+            com.xAxisRotation = values[2] / 180 * Math.PI
+            com.largeArc = values[3]
+            com.sweep = values[4]
+            com.startAngle = startAngle
+            com.endAngle = endAngle
+            com.deltaAngle = deltaAngle
+        }
+
+        /**
+         * explicit and implicit linetos 
+         * - introduced by Z
+         */
+        if (type === 'Z') {
+            // if Z introduces an implicit lineto with a length
+            if (M.x !== p.x && M.y !== p.y) {
+                com.closePath = true;
+            }
+        }
+
+        if (addSquareLength) {
+            com.squareDist = getSquareDistance(p0, p)
+        }
+
+        if (addArea) {
+            let cptArea = 0;
+            if (type === 'C') cptArea = getPolygonArea([p0, cp1, cp2, p], false)
+            if (type === 'Q') cptArea = getPolygonArea([p0, cp1, p], false)
+            com.cptArea = cptArea;
+        }
+
+        com.idx = i;
+
+        // update previous point
+        p0 = p;
+        pathDataVerbose.push(com)
+    }
+
+    //console.log('pathDataVerbose', pathDataVerbose);
+    return pathDataVerbose;
+}
 
 /**
- * analyze path data for
- * decimal detection
- * sub paths 
- * directions
- * crucial geometry properties
+ * create pathdata super set 
+ * including geometrical properties such as:
+ * segment introduces x/y extreme
+ * corner
+ * inflection/direction change
  */
+
+export function analyzePathData(pathData = [], {
+    detectExtremes = true,
+    detectCorners = true,
+    detectDirection = true,
+    detectSemiExtremes = false,
+    debug = false,
+    addSquareLength = true,
+    addArea = true,
+
+} = {}) {
+
+    // get verbose control point data
+    pathData = getPathDataVerbose(pathData, { addSquareLength, addArea });
+
+    // new pathdata adding properties
+    let pathDataPlus = [];
+
+    //console.log('pathData', pathData);
+    //return pathData
+
+    let pathPoly = getPathDataVertices(pathData);
+    let bb = getPolyBBox(pathPoly)
+    let { left, right, top, bottom, width, height } = bb;
+
+
+    // init starting point data
+    pathData[0].corner = false;
+    pathData[0].extreme = false;
+    pathData[0].semiExtreme = false;
+    pathData[0].directionChange = false;
+    pathData[0].closePath = false;
+    //pathData[0].dimA = 0;
+
+
+    // add first M command
+    let pathDataProps = [pathData[0]];
+    let len = pathData.length;
+
+    // threshold for corner angles: 10 deg
+    let thresholdCorner = Math.PI * 2 / 360 * 10
+
+    // define angle threshold for semi extremes
+    let thresholdAngle = detectSemiExtremes ? 0.01 : 0.05
+
+
+    for (let c = 2; len && c <= len; c++) {
+
+        let com = pathData[c - 1];
+        let { type, values, p0, p, cp1 = null, cp2 = null, squareDist = 0, cptArea = 0, dimA = 0 } = com;
+
+        //next command
+        let comN = pathData[c] || null;
+
+
+        // init properties
+        com.corner = false;
+        com.extreme = false;
+        com.semiExtreme = false;
+        com.directionChange = false;
+        com.closePath = false;
+
+        // get command points  
+        let commandPts = (type === 'C' || type === 'Q') ?
+            (type === 'C' ? [p0, cp1, cp2, p] : [p0, cp1, p]) :
+            ([p0, p]);
+
+
+        // check flatness of command
+        let toleranceFlat = 0.01;
+        let thresholdLength = dimA * 0.1
+        let areaThresh = squareDist * toleranceFlat;
+        let isFlat = Math.abs(cptArea) < areaThresh;
+
+
+        // bezier types
+        let isBezier = type === 'Q' || type === 'C';
+        let isBezierN = comN && (comN.type === 'Q' || comN.type === 'C');
+
+
+        /**
+         * detect extremes
+         * local or absolute 
+         */
+        let hasExtremes = false;
+
+        if (!isFlat && type !== 'L') {
+            // is extreme relative to bounding box 
+            if ((p.x === left || p.y === top || p.x === right || p.y === bottom)) {
+                hasExtremes = true;
+            }
+            else if (isBezier) {
+                hasExtremes = bezierhasExtreme(null, commandPts, thresholdAngle)
+            }
+        }
+
+        if (hasExtremes) {
+            com.extreme = true
+        }
+
+
+        // Corners and semi extremes 
+        if (isBezier && isBezierN) {
+
+            // semi extremes
+            if (detectSemiExtremes && !com.extreme) {
+
+                let dx1 = Math.abs(p.x - cp2.x)
+                let dy1 = Math.abs(p.y - cp2.y)
+                let hasSemiExtreme = false;
+
+                // exclude extremes or small deltas
+                if (dx1 && dy1 && dx1 > thresholdLength || dy1 > thresholdLength) {
+                    let ang1 = getAngle(cp2, p)
+                    let ang2 = getAngle(p, comN.cp1)
+
+                    let ang3 = Math.abs(ang1 + ang2) / 2
+                    hasSemiExtreme = isMultipleOf45(ang3)
+                }
+
+                if (hasSemiExtreme) {
+                    com.semiExtreme = true;
+                }
+            }
+
+
+            /**
+             * Detect direction change points
+             * this will prevent distortions when simplifying
+             * e.g in the "spine" of an "S" glyph
+             */
+            let signChange = (com.cptArea < 0 && comN.cptArea > 0) || (com.cptArea > 0 && comN.cptArea < 0) ? true : false;
+
+            if (signChange) {
+                com.directionChange = true;
+            }
+
+
+            // check corners
+            if (!com.extreme) {
+
+                let cpts1 = cp2 ? [cp2, p] : [cp1, p];
+                let cpts2 = cp2 ? [p, comN.cp1] : [p, comN.cp1];
+
+                let angCom1 = getAngle(...cpts1, true)
+                let angCom2 = getAngle(...cpts2, true)
+                let angDiff = Math.abs(angCom1 - angCom2)
+                let isCorner = angDiff > thresholdCorner
+
+                if (isCorner) {
+                    com.corner = true;
+                }
+            }
+        }
+
+
+        //debug = true;
+        if (debug) {
+            if (com.semiExtreme) renderPoint(markers, com.p, 'blue', '2%', '0.5')
+            if (com.directionChange) renderPoint(markers, com.p, 'orange', '1.5%', '0.5')
+            if (com.corner) renderPoint(markers, com.p, 'magenta', '1.5%', '0.5')
+            if (com.extreme) renderPoint(markers, com.p, 'cyan', '1%', '0.5')
+
+        }
+
+        pathDataProps.push(com)
+
+    }
+
+    //pathDataProps.push(comLast)
+
+
+    let dimA = (width + height) / 2
+    //pathDataPlus.push({ pathData: pathDataProps, bb: bb, dimA: dimA })
+    pathDataPlus = { pathData: pathDataProps, bb: bb, dimA: dimA }
+
+    //console.log('pathDataPlus', pathDataPlus);
+    return pathDataPlus
+
+}
+
+
 
 
 export function addDimensionData(pathData) {
@@ -41,275 +326,19 @@ export function addDimensionData(pathData) {
             p = M;
         }
 
-        let dimA = getDistAv(p0, p);
+        let dimA = getDistManhattan(p0, p);
         com.dimA = dimA;
         com.p0 = p0
         com.p = p
 
 
-        if(type==='C' || type==='Q') com.cp1 = {x:values[0], y:values[1]}
-        if(type==='C' ) com.cp2 = {x:values[2], y:values[3]}
+        if (type === 'C' || type === 'Q') com.cp1 = { x: values[0], y: values[1] }
+        if (type === 'C') com.cp2 = { x: values[2], y: values[3] }
 
-        p0=p
+        p0 = p
     }
 
 
-    console.log('!!!pathData', pathData);
+    //console.log('!!!pathData', pathData);
     return pathData
-}
-
-
-export function analyzePathData(pathData = []) {
-
-    let pathDataPlus = [];
-
-    let pathPoly = getPathDataVertices(pathData);
-    let bb = getPolyBBox(pathPoly)
-    let { left, right, top, bottom, width, height } = bb;
-
-    // initial starting point coordinates
-    let M0 = { x: pathData[0].values[0], y: pathData[0].values[1] };
-    let M = { x: pathData[0].values[0], y: pathData[0].values[1] };
-    let p0 = { x: pathData[0].values[0], y: pathData[0].values[1] };
-    let p;
-
-    // init starting point data
-    pathData[0].idx = 0;
-    pathData[0].p0 = M;
-    pathData[0].p = M;
-    pathData[0].lineto = false;
-    pathData[0].corner = false;
-    pathData[0].extreme = false;
-    pathData[0].directionChange = false;
-    pathData[0].closePath = false;
-    pathData[0].dimA = 0;
-
-
-    // add first M command
-    let pathDataProps = [pathData[0]];
-    let area0 = 0;
-    let len = pathData.length;
-
-    for (let c = 2; len && c <= len; c++) {
-
-        let com = pathData[c - 1];
-        let { type, values } = com;
-        let valsL = values.slice(-2);
-
-        /**
-         * get command points for 
-         * flatness checks:
-         * this way we can skip certain tests
-         */
-        let commandPts = [p0];
-        let isFlat = false;
-
-        // init properties
-        com.idx = c - 1;
-        com.lineto = false;
-        com.corner = false;
-        com.extreme = false;
-        com.directionChange = false;
-        com.closePath = false;
-        com.dimA = 0;
-        //com.flat = false;
-
-
-        /**
-         * define angle threshold for 
-         * corner detection
-         */
-        let angleThreshold = 0.05
-        p = valsL.length ? { x: valsL[0], y: valsL[1] } : M;
-
-
-        // update M for Z starting points
-        if (type === 'M') {
-            M = p;
-            p0 = p
-        }
-        else if (type.toLowerCase() === 'z') {
-            p = M;
-        }
-
-        // add on-path points
-        com.p0 = p0;
-        com.p = p;
-
-        let cp1, cp2, cp1N, cp2N, pN, typeN, area1;
-
-        //let dimA = (width + height) / 2;
-        let dimA = getDistAv(p0, p);
-        com.dimA = dimA;
-        //com.a = dimA;
-
-
-
-        /**
-         * explicit and implicit linetos 
-         * - introduced by Z
-         */
-        if (type === 'L') com.lineto = true;
-
-        if (type === 'Z') {
-            com.closePath = true;
-            // if Z introduces an implicit lineto with a length
-            if (M.x !== M0.x && M.y !== M0.y) {
-                com.lineto = true;
-            }
-        }
-
-        // if bezier
-        if (type === 'Q' || type === 'C') {
-            cp1 = { x: values[0], y: values[1] }
-            cp2 = type === 'C' ? { x: values[2], y: values[3] } : null;
-            com.cp1 = cp1;
-            if (cp2) com.cp2 = cp2;
-        }
-
-
-        /**
-         * check command flatness
-         * we leave it to the bezier simplifier
-         * to convert flat beziers to linetos
-         * otherwise we may strip rather flat starting segments
-         * preventing a better simplification
-         */
-
-        if (values.length > 2) {
-            if (type === 'Q' || type === 'C') commandPts.push(cp1);
-            if (type === 'C') commandPts.push(cp2);
-            commandPts.push(p);
-
-            /*
-            //let commandFlatness = commandIsFlat(commandPts);
-            let commandFlatness = commandIsFlat(commandPts);
-            isFlat = commandFlatness.flat;
-            com.flat = isFlat;
-
-            if (isFlat) {
-                com.extreme = false;
-                //renderPoint(markers, p, 'red', '1%', '0.5')
-            }
-            */
-
-        }
-
-        /**
-         * is extreme relative to bounding box 
-         * in case elements are rotated we can't rely on 90degree angles
-         * so we interpret maximum x/y on-path points as well as extremes
-         * but we ignore linetos to allow chunk compilation
-         */
-        if (!isFlat && type !== 'L' && (p.x === left || p.y === top || p.x === right || p.y === bottom)) {
-            com.extreme = true;
-        }
-
-
-        //next command
-        let comN = pathData[c] ? pathData[c] : null;
-        let comNValsL = comN ? comN.values.slice(-2) : null;
-        typeN = comN ? comN.type : null;
-
-
-        // get bezier control points
-        if (comN && (comN.type === 'Q' || comN.type === 'C')) {
-            pN = comN ? { x: comNValsL[0], y: comNValsL[1] } : null;
-
-            cp1N = { x: comN.values[0], y: comN.values[1] }
-            cp2N = comN.type === 'C' ? { x: comN.values[2], y: comN.values[3] } : null;
-        }
-
-
-        /**
-         * Detect direction change points
-         * this will prevent distortions when simplifying
-         * e.g in the "spine" of an "S" glyph
-         */
-        area1 = getPolygonArea(commandPts)
-        let signChange = (area0 < 0 && area1 > 0) || (area0 > 0 && area1 < 0) ? true : false;
-        // update area
-        area0 = area1
-
-        if (signChange) {
-            //renderPoint(svg1, p0, 'orange', '1%', '0.75')
-            com.directionChange = true;
-        }
-
-
-        /**
-         * check extremes or corners 
-         * for adjacent curves by 
-         * control point angles
-         */
-        if ((type === 'Q' || type === 'C')) {
-
-            if ((type === 'Q' && typeN === 'Q') || (type === 'C' && typeN === 'C')) {
-
-                // check extremes
-                let cpts = commandPts.slice(1);
-
-                let w = pN ? Math.abs(pN.x - p0.x) : 0
-                let h = pN ? Math.abs(pN.y - p0.y) : 0
-                let thresh = (w + h) / 2 * 0.1;
-                let pts1 = type === 'C' ? [p, cp1N, cp2N, pN] : [p, cp1N, pN];
-
-                //let flatness2 = commandIsFlat(pts1, thresh)
-                //let isFlat2 = flatness2.flat;
-
-                /**
-                 * if current and next cubic are flat
-                 * we don't flag them as extremes to allow simplification
-                 */
-                //let hasExtremes = (isFlat && isFlat2) ? false : (!com.extreme ? bezierhasExtreme(p0, cpts, angleThreshold) : true);
-
-                let hasExtremes = (isFlat) ? false : (!com.extreme ? bezierhasExtreme(p0, cpts, angleThreshold) : true);
-
-
-                //let bezierExtreme = bezierhasExtreme(p0, cpts, angleThreshold);
-
-                //console.log(isFlat, isFlat2, cpts, hasExtremes, 'com.extreme', com.extreme, 'commandPts', commandPts);
-
-                if (hasExtremes) {
-                    com.extreme = true
-                }
-
-                // check corners
-                else {
-
-                    let cpts1 = cp2 ? [cp2, p] : [cp1, p];
-                    let cpts2 = cp2 ? [p, cp1N] : [p, cp1N];
-
-                    let angCom1 = getAngle(...cpts1, true)
-                    let angCom2 = getAngle(...cpts2, true)
-                    let angDiff = Math.abs(angCom1 - angCom2) * 180 / Math.PI
-
-
-                    let cpDist1 = getSquareDistance(...cpts1)
-                    let cpDist2 = getSquareDistance(...cpts2)
-
-                    let cornerThreshold = 10
-                    let isCorner = angDiff > cornerThreshold && cpDist1 && cpDist2
-
-                    if (isCorner) {
-                        com.corner = true;
-                    }
-                }
-            }
-        }
-
-
-        pathDataProps.push(com)
-        p0 = p;
-
-    }
-
-
-    let dimA = (width + height) / 2
-    //pathDataPlus.push({ pathData: pathDataProps, bb: bb, dimA: dimA })
-    pathDataPlus = { pathData: pathDataProps, bb: bb, dimA: dimA }
-
-    //console.log('pathDataPlus', pathDataPlus);
-    return pathDataPlus
-
 }

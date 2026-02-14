@@ -18,6 +18,47 @@ export function getAngle(p1, p2, normalize = false) {
 }
 
 
+export function getDeltaAngle2(centerPoint, startPoint, endPoint, largeArc = false) {
+
+    const normalizeAngle = (angle) => {
+        let normalized = angle % (2 * Math.PI);
+
+        if (normalized > Math.PI) {
+            normalized -= 2 * Math.PI;
+        } else if (normalized <= -Math.PI) {
+            normalized += 2 * Math.PI;
+        }
+        return normalized;
+    }
+
+    let startAngle = getAngle(centerPoint, startPoint, false)
+
+    let endAngle = getAngle(centerPoint, endPoint, false)
+
+
+    // Calculate raw delta angle (difference)
+    let deltaAngle = endAngle - startAngle;
+
+    // Normalize the delta angle to range (-π, π]
+    //deltaAngle = normalizeAngle(deltaAngle);
+
+    //if (largeArc) deltaAngle = Math.PI * 2 - Math.abs(deltaAngle);
+
+    let phi = 180 / Math.PI
+    let startAngleDeg = startAngle * phi
+    let endAngleDeg = endAngle * phi
+    let deltaAngleDeg = deltaAngle * phi
+
+    return {
+        startAngle, endAngle, deltaAngle, startAngleDeg,
+        endAngleDeg,
+        deltaAngleDeg
+    };
+
+}
+
+
+
 export function getDeltaAngle(centerPoint, startPoint, endPoint, largeArc = false) {
 
     const normalizeAngle = (angle) => {
@@ -47,7 +88,7 @@ export function getDeltaAngle(centerPoint, startPoint, endPoint, largeArc = fals
     // Normalize the delta angle to range (-π, π]
     deltaAngle = normalizeAngle(deltaAngle);
 
-    if (largeArc) deltaAngle = Math.PI*2 - Math.abs(deltaAngle);
+    if (largeArc) deltaAngle = Math.PI * 2 - Math.abs(deltaAngle);
 
     let phi = 180 / Math.PI
     let startAngleDeg = startAngle * phi
@@ -392,8 +433,8 @@ export function svgArcToCenterParam(x1, y1, rx, ry, xAxisRotation, largeArc, swe
     let phi = rx === ry ? 0 : (xAxisRotation * PI) / 180;
     let cx, cy
 
-    let s_phi = !phi ? 0 : sin(phi);
-    let c_phi = !phi ? 1 : cos(phi);
+    let s_phi = !phi ? 0 : Math.sin(phi);
+    let c_phi = !phi ? 1 : Math.cos(phi);
 
     let hd_x = (x1 - x2) / 2;
     let hd_y = (y1 - y2) / 2;
@@ -408,8 +449,8 @@ export function svgArcToCenterParam(x1, y1, rx, ry, xAxisRotation, largeArc, swe
     //   Step 3: Ensure radii are large enough
     let lambda = (x1_ * x1_) / (rx * rx) + (y1_ * y1_) / (ry * ry);
     if (lambda > 1) {
-        rx = rx * sqrt(lambda);
-        ry = ry * sqrt(lambda);
+        rx = rx * Math.sqrt(lambda);
+        ry = ry * Math.sqrt(lambda);
 
         // save real rx/ry
         arcData.rx = rx;
@@ -424,7 +465,7 @@ export function svgArcToCenterParam(x1, y1, rx, ry, xAxisRotation, largeArc, swe
         //console.log('error:', rx, ry, rxy1_, ryx1_);
         throw Error("start point can not be same as end point");
     }
-    let coe = sqrt(abs((rxry * rxry - sum_of_sq) / sum_of_sq));
+    let coe = Math.sqrt(Math.abs((rxry * rxry - sum_of_sq) / sum_of_sq));
     if (largeArc == sweep) {
         coe = -coe;
     }
@@ -596,7 +637,14 @@ export function getTangentAngle(rx, ry, parametricAngle) {
     return tangentAngle;
 }
 
-export function bezierhasExtreme(p0, cpts = [], angleThreshold = 0.05) {
+
+export function bezierhasExtreme(p0=null, cpts = [], angleThreshold = 0.05) {
+
+    if(!p0){
+        p0 = cpts[0]
+        cpts = cpts.splice(1, cpts.length)
+    }
+
     let isCubic = cpts.length === 3 ? true : false;
     let cp1 = cpts[0] || null
     let cp2 = isCubic ? cpts[1] : null;
@@ -620,30 +668,30 @@ export function bezierhasExtreme(p0, cpts = [], angleThreshold = 0.05) {
 }
 
 
-export function getSemiExtremesT(p0, cp1, cp2, p, angleRad=Math.PI/2) {
+export function getSemiExtremesT(p0, cp1, cp2, p, angleRad = Math.PI / 2) {
     // Rotate all points by -angleRad
     let cos = Math.cos(-angleRad);
     let sin = Math.sin(-angleRad);
-    
+
     const rotatePoint = (point) => ({
         x: point.x * cos - point.y * sin,
         y: point.x * sin + point.y * cos
     });
-    
+
     let p0Rot = rotatePoint(p0);
     let cp1Rot = rotatePoint(cp1);
     let cp2Rot = rotatePoint(cp2);
     let pRot = rotatePoint(p);
-    
+
     // Now find x-extrema in rotated coordinate system
     // These correspond to points where original tangent angle = angleRad
-    
+
     let a = -3 * p0Rot.x + 9 * cp1Rot.x - 9 * cp2Rot.x + 3 * pRot.x;
     let b = 6 * p0Rot.x - 12 * cp1Rot.x + 6 * cp2Rot.x;
     let c = 3 * cp1Rot.x - 3 * p0Rot.x;
-    
+
     let extremes = [];
-    
+
     if (Math.abs(a) < 1e-12) {
         if (Math.abs(b) > 1e-12) {
             let t = -c / b;
@@ -651,22 +699,22 @@ export function getSemiExtremesT(p0, cp1, cp2, p, angleRad=Math.PI/2) {
         }
         return extremes;
     }
-    
+
     let discriminant = b * b - 4 * a * c;
     if (discriminant >= 0) {
         let sqrtDisc = Math.sqrt(discriminant);
         let t1 = (-b + sqrtDisc) / (2 * a);
         let t2 = (-b - sqrtDisc) / (2 * a);
-        
+
         if (t1 > 0 && t1 < 1) extremes.push(t1);
         if (t2 > 0 && t2 < 1) extremes.push(t2);
     }
-    
+
     return extremes;
 }
 
-export function getBezierExtremeT(pts) {
-    let tArr = pts.length === 4 ? cubicBezierExtremeT(pts[0], pts[1], pts[2], pts[3]) : quadraticBezierExtremeT(pts[0], pts[1], pts[2]);
+export function getBezierExtremeT(pts, { addExtremes = true, addSemiExtremes = false } = {}) {
+    let tArr = pts.length === 4 ? cubicBezierExtremeT(pts[0], pts[1], pts[2], pts[3], { addExtremes, addSemiExtremes }) : quadraticBezierExtremeT(pts[0], pts[1], pts[2], { addExtremes, addSemiExtremes });
     return tArr;
 }
 
@@ -782,8 +830,35 @@ export function getArcExtemes(p0, values) {
 
 
 // cubic bezier.
-export function cubicBezierExtremeT(p0, cp1, cp2, p) {
+export function cubicBezierExtremeT(p0, cp1, cp2, p,
+    { addExtremes = true, addSemiExtremes = false } = {}) {
+
+
+    // rotate cpts for semi extremes
+    const rotatePoint = (pt) => {
+
+        const angleRad = Math.PI / 4
+        const cos = Math.cos(angleRad);
+        const sin = Math.sin(angleRad);
+
+        return {
+            x: pt.x * cos - pt.y * sin,
+            y: pt.x * sin + pt.y * cos
+        }
+    };
+
+
+    if (addSemiExtremes) {
+        p0 = rotatePoint(p0)
+        cp1 = rotatePoint(cp1)
+        cp2 = rotatePoint(cp2)
+        p = rotatePoint(p)
+    }
+
+
     let [x0, y0, x1, y1, x2, y2, x3, y3] = [p0.x, p0.y, cp1.x, cp1.y, cp2.x, cp2.y, p.x, p.y];
+
+
 
     /**
      * if control points are within 
@@ -804,8 +879,8 @@ export function cubicBezierExtremeT(p0, cp1, cp2, p) {
         return []
     }
 
-    let tArr = [],
-        a, b, c, t, t1, t2, b2ac, sqrt_b2ac;
+    let tArr = [], a, b, c, t, t1, t2, b2ac, sqrt_b2ac;
+
     for (let i = 0; i < 2; ++i) {
         if (i == 0) {
             b = 6 * x0 - 12 * x1 + 6 * x2;
@@ -816,8 +891,8 @@ export function cubicBezierExtremeT(p0, cp1, cp2, p) {
             a = -3 * y0 + 9 * y1 - 9 * y2 + 3 * y3;
             c = 3 * y1 - 3 * y0;
         }
-        if (Math.abs(a) < 1e-12) {
-            if (Math.abs(b) < 1e-12) {
+        if (Math.abs(a) < 1e-8) {
+            if (Math.abs(b) < 1e-8) {
                 continue;
             }
             t = -c / b;
@@ -828,7 +903,7 @@ export function cubicBezierExtremeT(p0, cp1, cp2, p) {
         }
         b2ac = b * b - 4 * c * a;
         if (b2ac < 0) {
-            if (Math.abs(b2ac) < 1e-12) {
+            if (Math.abs(b2ac) < 1e-8) {
                 t = -b / (2 * a);
                 if (0 < t && t < 1) {
                     tArr.push(t);
@@ -851,13 +926,44 @@ export function cubicBezierExtremeT(p0, cp1, cp2, p) {
     while (j--) {
         t = tArr[j];
     }
+
+    //console.log('addSemiExtremes', addSemiExtremes, addExtremes, tArr);
+
     return tArr;
 }
 
+export function isMultipleOf45(angleRad, epsilon = 0.001) {
+    let rad90 = Math.PI / 2;
+    let rad45 = rad90 / 2;
+    let isRightAngle = Math.abs(angleRad / rad90 - Math.round(angleRad / rad90)) < epsilon
+    return !isRightAngle ? Math.abs(angleRad / rad45 - Math.round(angleRad / rad45)) < epsilon : false;
+}
 
 
 //For quadratic bezier.
-export function quadraticBezierExtremeT(p0, cp1, p) {
+export function quadraticBezierExtremeT(p0, cp1, p, { addExtremes = true, addSemiExtremes = false } = {}) {
+
+
+    // rotate cpts for semi extremes
+    const rotatePoint = (pt) => {
+        const angleRad = -Math.PI / 4
+        const cos = Math.cos(angleRad);
+        const sin = Math.sin(angleRad);
+
+        return {
+            x: pt.x * cos - pt.y * sin,
+            y: pt.x * sin + pt.y * cos
+        }
+    };
+
+
+    if (addSemiExtremes) {
+        p0 = rotatePoint(p0)
+        cp1 = rotatePoint(cp1)
+        p = rotatePoint(p)
+    }
+
+
     /**
      * if control points are within 
      * bounding box of start and end point 
@@ -975,22 +1081,33 @@ export function intersectLines(p1, p2, p3, p4) {
 
 /**
  * sloppy distance calculation
- * based on x/y differences
+ * based on "half Manhattan/Cab" distance
  */
-export function getDistAv(pt1, pt2) {
 
-    let diffX = Math.abs(pt2.x - pt1.x);
-    let diffY = Math.abs(pt2.y - pt1.y);
-    let diff = (diffX + diffY) / 2;
-
-    /*
-    let diffX = pt2.x - pt1.x;
-    let diffY = pt2.y - pt1.y;
-    let diff = Math.abs(diffX + diffY) / 2;
-    */
-
-    return diff;
+export function getDistAv_(pt1, pt2) {
+    let dx = Math.abs(pt2.x - pt1.x);
+    let dy = Math.abs(pt2.y - pt1.y);
+    return dx+dy;
 }
+
+
+export function getDistAv(pt1, pt2) {
+    let dx = Math.abs(pt2.x - pt1.x);
+    let dy = Math.abs(pt2.y - pt1.y);
+    return (dx + dy) / 2;
+}
+
+/**
+ * get Manhattan/Cab distance 
+ * based on x/y deltas
+ * sloppy but fast
+ */
+export function getDistManhattan(pt1, pt2) {
+    let dx = Math.abs(pt2.x - pt1.x);
+    let dy = Math.abs(pt2.y - pt1.y);
+    return dx+dy;
+}
+
 
 /**
  * get command dimensions 

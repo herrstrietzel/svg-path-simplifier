@@ -1,9 +1,9 @@
 import { detectInputType } from './detect_input';
 import { simplifyPathDataCubic } from './pathData_simplify_cubic';
-import { getPathDataVertices, pointAtT } from './svgii/geometry';
+import { getDistManhattan, getDistance, getPathDataVertices, pointAtT } from './svgii/geometry';
 import { getPolyBBox } from './svgii/geometry_bbox';
 import { analyzePathData } from './svgii/pathData_analyze';
-import { combineArcs, combineCubicsToArcs, convertPathData, cubicCommandToArc, revertCubicQuadratic } from './svgii/pathData_convert';
+import { convertPathData } from './svgii/pathData_convert';
 import { parsePathDataNormalized } from './svgii/pathData_parse';
 import { shapeElToPath } from './svgii/pathData_parse_els';
 import { pathDataRemoveColinear } from './svgii/pathData_remove_collinear';
@@ -25,6 +25,10 @@ import { refineRoundSegments } from './svgii/pathData_refine_round';
 import { refineClosingCommand } from './svgii/pathData_remove_short';
 import { scalePathData } from './svgii/pathData_transform_scale';
 import { getViewBox } from './svg_getViewbox';
+import { redrawPathData } from './svgii/pathData_simplify_redraw';
+import { getPolygonArea } from './svgii/geometry_area';
+import { pathDataRevertCubicToQuadratic } from './pathData_simplify_revertToquadratics';
+import { pathDataCubicsToArc } from './pathData_simplify_cubicsToArcs';
 
 //import { installDOMPolyfills } from './dom-polyfill';
 
@@ -63,13 +67,18 @@ export function svgPathSimplify(input = '', {
     extrapolateDominant = true,
     keepInflections = false,
     addExtremes = false,
+    addSemiExtremes = false,
+
+
     removeOrphanSubpaths = false,
 
     simplifyRound = false,
 
     //svg scaling
-    scale=1,
-    scaleTo=0,
+    scale = 1,
+    scaleTo = 0,
+    crop = false,
+    alignToOrigin = false,
 
 
     // svg path optimizations
@@ -86,15 +95,21 @@ export function svgPathSimplify(input = '', {
     removeUnused = true,
     shapesToPaths = true,
 
+    tMin = 0,
+    tMax = 1,
+
+    // redraw - for messed up paths
+    redraw = false,
+
 
 } = {}) {
 
 
-    // clamp tolerance 
+    // clamp tolerance and scale
     tolerance = Math.max(0.1, tolerance);
+    scale = Math.max(0.001, scale)
 
     let inputType = detectInputType(input);
-
     let svg = '';
     let svgSize = 0;
     let svgSizeOpt = 0;
@@ -112,8 +127,19 @@ export function svgPathSimplify(input = '', {
      */
 
     // original size
-    //svgSize = new Blob([input]).size;
     svgSize = input.length;
+
+
+
+    /**
+     * global bbox and viewBox for 
+     * path scaling
+     * sorting and cropping
+    */
+    let viewBox = { x: 0, y: 0, width: 0, height: 0 }
+    let bb_global = { x: 0, y: 0, width: 0, height: 0 }
+    let xArr = []
+    let yArr = []
 
 
     // mode:0 – single path
@@ -127,7 +153,6 @@ export function svgPathSimplify(input = '', {
             d = input;
 
             // stringify to compare lengths
-            //let dStr = pathDataToD(d);
             let dStr = d.map(com => { return `${com.type} ${com.values.join(' ')}` }).join(' ');
             svgSize = dStr.length;
 
@@ -152,9 +177,17 @@ export function svgPathSimplify(input = '', {
 
         // collect paths
         let pathEls = svg.querySelectorAll('path')
+
+
+        //if(mergePaths){}
+
         pathEls.forEach(path => {
             paths.push({ d: path.getAttribute('d'), el: path })
         })
+
+        // get viewBox/dimensions
+        viewBox = getViewBox(svg, decimals)
+
     }
 
 
@@ -174,31 +207,43 @@ export function svgPathSimplify(input = '', {
     // combinded path data for SVGs with mergePaths enabled
     let pathData_merged = [];
 
+
     for (let i = 0, l = paths.length; l && i < l; i++) {
 
         let path = paths[i];
         let { d, el } = path;
 
+
         let pathData = parsePathDataNormalized(d, { quadraticToCubic, toAbsolute, arcToCubic });
 
         // scale pathdata and viewBox
-        if(scale!==1 || scaleTo){
+        if (scale !== 1 || scaleTo) {
 
-            // get bbox for scaling
-            if(scaleTo){
+            // get bbox of viewBox for scaling
+            if (scaleTo) {
 
-                let pathDataExtr = pathData.map(com=>{return {type:com.type, values:com.values}})
-                pathDataExtr = addExtremePoints(pathDataExtr);
-                let poly = getPathDataVertices(pathDataExtr)
-                let bb = getPolyBBox(poly);
+                if (viewBox.width && !crop) {
+                    scale = scaleTo / viewBox.width;
 
-                let scaleW = scaleTo/bb.width
-                scale = scaleW;
-                //console.log('scaleW', scaleW);
+                } else {
+
+                    // convert arcs to cubics, add extreme to get precise bounding box
+                    let pathDataExtr = pathData.map(com => { return { type: com.type, values: com.values } })
+                    pathDataExtr = convertPathData(pathDataExtr, { arcToCubic: true })
+                    pathDataExtr = addExtremePoints(pathDataExtr);
+
+                    let poly = getPathDataVertices(pathDataExtr)
+                    let bb = getPolyBBox(poly);
+                    xArr.push(bb.x, bb.x + bb.width)
+                    yArr.push(bb.y, bb.y + bb.height)
+
+
+                    let scaleW = scaleTo / bb.width
+                    scale = scaleW;
+                }
             }
 
-
-
+            //console.log('scale', scale, scaleTo);
             pathData = scalePathData(pathData, scale)
         }
 
@@ -206,6 +251,7 @@ export function svgPathSimplify(input = '', {
         let comCount = pathData.length
 
         if (removeOrphanSubpaths) pathData = removeOrphanedM(pathData);
+
 
         /**
          * get sub paths
@@ -230,13 +276,25 @@ export function svgPathSimplify(input = '', {
 
             // remove zero length linetos
             if (removeColinear || removeZeroLength) pathDataSub = removeZeroLengthLinetos(pathDataSub)
-            //console.log(removeColinear, removeZeroLength);
 
 
-            // add extremes
-            //let tMin=0.2, tMax=0.8;
-            let tMin = 0, tMax = 1;
-            if (addExtremes) pathDataSub = addExtremePoints(pathDataSub, tMin, tMax)
+
+            /**
+             * try to redraw messed up paths
+             * based on significant points suchas
+             * extremes, semi-extremes and corners
+             */
+            if (redraw) {
+                addExtremes = true
+                addSemiExtremes = true
+                simplifyCorners = false
+                keepCorners = true
+                keepExtremes = true
+                optimizeOrder = true
+                simplifyBezier = false
+                tMin = 0
+                tMax = 0
+            }
 
 
             // sort to top left
@@ -246,54 +304,49 @@ export function svgPathSimplify(input = '', {
             // Preprocessing: remove colinear - ignore flat beziers (removed later)
             if (removeColinear) pathDataSub = pathDataRemoveColinear(pathDataSub, { tolerance, flatBezierToLinetos: false });
 
+            if (addExtremes || addSemiExtremes) pathDataSub = addExtremePoints(pathDataSub,
+                { tMin, tMax, addExtremes, addSemiExtremes })
+
+
 
             // analyze pathdata to add info about signicant properties such as extremes, corners
-            let pathDataPlus = analyzePathData(pathDataSub);
+            let pathDataPlus = analyzePathData(pathDataSub, {
+                detectSemiExtremes: addSemiExtremes,
+            });
 
-            //console.log('pathDataPlus', pathDataPlus);
+            //console.log(pathDataPlus, pathDataPlus);
 
 
             // simplify beziers
             let { pathData, bb, dimA } = pathDataPlus;
+            xArr.push(bb.x, bb.x + bb.width)
+            yArr.push(bb.y, bb.y + bb.height)
 
 
             if (refineClosing) pathData = refineClosingCommand(pathData, { threshold: dimA * 0.001 })
+
+
+            /**
+             * try redrawing
+             */
+
+            if (redraw) {
+                pathData = redrawPathData(pathData, { tolerance, threshold: dimA * 0.001 })
+            }
 
 
             pathData = simplifyBezier ? simplifyPathDataCubic(pathData, { simplifyBezier, keepInflections, keepExtremes, keepCorners, extrapolateDominant, revertToQuadratics, tolerance, reverse }) : pathData;
 
             // refine extremes
             if (refineExtremes) {
-                let thresholdEx = (bb.width + bb.height) / 2 * 0.05
+                //let thresholdEx = (bb.width + bb.height) / 2 * 0.05
+                let thresholdEx = (bb.width + bb.height) * 0.05
                 pathData = refineAdjacentExtremes(pathData, { threshold: thresholdEx, tolerance })
             }
 
 
             // cubic to arcs
-            if (cubicToArc) {
-
-                let thresh = 1;
-
-                //pathData = combineCubicsToArcs(pathData)
-
-
-                for (let c = 0, l = pathData.length; c < l; c++) {
-                    let com = pathData[c]
-                    let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
-                    if (type === 'C') {
-                        //console.log(com);
-                        let comA = cubicCommandToArc(p0, cp1, cp2, p, thresh)
-                        if (comA.isArc) pathData[c] = comA.com;
-                    }
-                }
-
-                // combine adjacent cubics
-                pathData = combineArcs(pathData)
-
-                /*
-                */
-
-            }
+            if (cubicToArc) pathData = pathDataCubicsToArc(pathData, {areaThreshold:1.5})
 
 
             // post processing: remove flat beziers
@@ -306,7 +359,7 @@ export function svgPathSimplify(input = '', {
             if (simplifyCorners) {
                 //pathData = removeZeroLengthLinetos(pathData);
 
-                let threshold = (bb.width + bb.height) / 2 * 0.1
+                let threshold = (bb.width + bb.height) * 0.1
                 pathData = refineRoundedCorners(pathData, { threshold, tolerance })
             }
 
@@ -315,24 +368,7 @@ export function svgPathSimplify(input = '', {
 
 
             // simplify to quadratics
-            if (revertToQuadratics) {
-                for (let c = 0, l = pathData.length; c < l; c++) {
-                    let com = pathData[c]
-                    let { type, values, p0, cp1 = null, cp2 = null, p = null } = com;
-                    if (type === 'C') {
-                        //console.log(com);
-                        let comQ = revertCubicQuadratic(p0, cp1, cp2, p)
-                        if (comQ.type === 'Q') {
-                            comQ.extreme = com.extreme
-                            comQ.corner = com.corner
-                            comQ.dimA = com.dimA
-
-                            pathData[c] = comQ
-                        }
-                    }
-                }
-            }
-
+            if (revertToQuadratics) pathData = pathDataRevertCubicToQuadratic(pathData);
 
             // optimize close path
             if (optimizeOrder) pathData = optimizeClosePath(pathData, { autoClose })
@@ -342,10 +378,25 @@ export function svgPathSimplify(input = '', {
             //subPathArr[i]=pathData
             pathDataPlusArr.push({ pathData, bb })
 
-        }
+        } // end sup paths
 
-        // sort to top left
-        if (optimizeOrder) pathDataPlusArr = pathDataPlusArr.sort((a, b) => a.bb.y - b.bb.y || a.bb.x - b.bb.x)
+        // sort subpaths to top left
+        let xMin = Math.min(...xArr)
+        let yMin = Math.min(...yArr)
+        let xMax = Math.max(...xArr)
+        let yMax = Math.max(...yArr)
+
+        bb_global = { x: xMin, y: yMin, width: xMax - xMin, height: yMax - yMin }
+        let isPortrait = bb_global.height > bb_global.width;
+
+        //console.log(xMin, xMax, 'y:', yMin, yMax, 'bb_global', bb_global);
+        //console.log(i, pathDataPlusArr);
+
+
+        // prefer top to bottom priority for portrait aspect ratios 
+        if (optimizeOrder) {
+            pathDataPlusArr = isPortrait ? pathDataPlusArr.sort((a, b) => a.bb.y - b.bb.y || a.bb.x - b.bb.x) : pathDataPlusArr.sort((a, b) => a.bb.x - b.bb.x || a.bb.y - b.bb.y)
+        }
 
         // flatten compound paths 
         pathData = [];
@@ -355,8 +406,6 @@ export function svgPathSimplify(input = '', {
 
         //pathData = pathDataFlat;
         //pathData = subPathArr.flat();
-
-
         //console.log('pathData', pathData);
 
         if (autoAccuracy) {
@@ -378,6 +427,19 @@ export function svgPathSimplify(input = '', {
 
             // remove zero-length segments introduced by rounding
             pathData = removeZeroLengthLinetos(pathData);
+
+
+            // realign path to zero origin
+            if (alignToOrigin) {
+                console.log(bb_global);
+
+                pathData[0].values[0] = (pathData[0].values[0] - bb_global.x).toFixed(decimals)
+                pathData[0].values[1] = (pathData[0].values[1] - bb_global.y).toFixed(decimals)
+
+                bb_global.x = 0
+                bb_global.y = 0
+            }
+
 
             // compare command count
             let comCountS = pathData.length
@@ -401,7 +463,8 @@ export function svgPathSimplify(input = '', {
             // apply new path for svgs
             if (el) el.setAttribute('d', dOpt)
         }
-    };
+
+    } // end path array
 
     /**
      *  stringify new SVG
@@ -433,22 +496,30 @@ export function svgPathSimplify(input = '', {
         }
 
         // adjust viewBox and width for scale
-        if(scale){
+        if (scale) {
 
-            let vB = getViewBox(svg, decimals)
-            let {x,y, width, height, w, h, hasViewBox, hasWidth, hasHeight, widthUnit, heightUnit} = vB;
-            
-            if(hasViewBox){
-                svg.setAttribute('viewBox', [x, y, width, height].map(val=>+(val*scale).toFixed(decimals)).join(' ')  )
-            }
-            if(hasWidth){
-                svg.setAttribute('width', +(w*scale).toFixed(decimals)+widthUnit  )
-            }
+            let { x, y, width, height, w, h, hasViewBox, hasWidth, hasHeight, widthUnit, heightUnit } = viewBox;
+            //console.log('bb_global', bb_global);
 
-            if(hasHeight){
-                svg.setAttribute('height', +(h*scale).toFixed(decimals)+heightUnit  )
+            if (crop) {
+                x = bb_global.x
+                y = bb_global.y
+                width = bb_global.width
+                height = bb_global.height
+                w = width;
+                h = height;
             }
 
+            if (hasViewBox) {
+                svg.setAttribute('viewBox', [x, y, width, height].map(val => +(val * scale).toFixed(decimals)).join(' '))
+            }
+            if (hasWidth) {
+                svg.setAttribute('width', +(w * scale).toFixed(decimals) + widthUnit)
+            }
+
+            if (hasHeight) {
+                svg.setAttribute('height', +(h * scale).toFixed(decimals) + heightUnit)
+            }
         }
 
 
@@ -464,7 +535,8 @@ export function svgPathSimplify(input = '', {
         report = {
             svgSize,
             svgSizeOpt,
-            compression
+            compression,
+            decimals
         }
 
     } else {

@@ -38,6 +38,9 @@
     <script src="demo/lib/elzoomo/elzoomo.js" defer></script>
 
     <script src="dist/svg-path-simplify.js" defer></script>
+    <!-- 
+        <script src="https://cdn.jsdelivr.net/npm/svg-path-simplify@0.1.2/dist/svg-path-simplify.min.js" defer></script>
+    -->
 
     <script src="demo/samples.js"></script>
     <script src="demo/app.js" defer></script>
@@ -96,10 +99,16 @@
 
                 <h3>SVG/path scaling</h3>
                 <p>
-                    <label>Scale <input type="number" value="1" min="0.00001" max="10000" name="scale" step="0.1"></label>
+                    <label>Scale <input type="number" value="1" min="0.00001" max="10000" name="scale"
+                            step="0.1"></label>
                 </p>
                 <p>
-                    <label>Scale to <input type="number" value="0" name="scaleTo"></label>
+                    <label>ScaleTo <input type="number" value="0" name="scaleTo"></label>
+                </p>
+                <p>
+                    <label><input type="checkbox" name="crop" data-info="crops svgs to tight bbox">crop</label>
+                    <label><input type="checkbox" name="alignToOrigin" data-info="aligns path to x/y 0 origin">alignToOrigin</label>
+
                 </p>
 
 
@@ -136,9 +145,6 @@
                             data-info="Reverts cubic to quadratic Béziers if applicable" checked>revert
                         revertToQuadratics</label>
 
-                    <label><input type="checkbox" name="cubicToArc"
-                            data-info="Reverts cubic to arcs if applicable">cubicToArc</label>
-
                     <!-- 
                                 <label><input type="checkbox" name="reverse">try with reversed drawing direction</label>
             
@@ -147,6 +153,15 @@
                             -->
 
 
+
+
+                </p>
+                <h3>Advanced simplifications</h3>
+                <p>
+
+                    <label><input type="checkbox" name="cubicToArc"
+                            data-info="Reverts cubic to arcs if applicable">cubicToArc</label>
+
                     <label><input type="checkbox" name="removeOrphanSubpaths"
                             data-info="remove orphaned M commands not connecting to lines or curve segments"
                             checked>removeOrphanSubpaths</label>
@@ -154,8 +169,13 @@
                     <label><input type="checkbox" name="simplifyCorners">simplifyCorners</label>
                     <label><input type="checkbox" name="simplifyRound">simplifyRound</label>
                     <label><input type="checkbox" name="addExtremes">addExtremes</label>
+                    <label><input type="checkbox" name="addSemiExtremes">addSemiExtremes</label>
+
+                    <label><input type="checkbox" name="redraw"
+                            data-info="try to redraw messed up paths based on extremes, semiextermes and corners">redraw</label>
 
                 </p>
+
 
                 <p>
                     <label>tolerance<input type="number" name="tolerance" min="0.1" max="10" step="0.1" value="1"
@@ -217,38 +237,38 @@
 
                     <div class="wrp-btns txt-rgh">
 
-                            <!-- Share -->
-                            <a href="#" class="btn a-non btn-download btn-neg" id="shareUrl" data-icon="link">Share</a>
+                        <!-- Share -->
+                        <a href="#" class="btn a-non btn-download btn-neg" id="shareUrl" data-icon="link">Share</a>
 
-                            <!-- codepen -->
-                            <form action="https://codepen.io/pen/define" method="POST" target="_blank"
-                                class="form-codepen dsp-inl-blc">
-                                <input id="inputCodepen" type="hidden" value="" name="data" data-ignore="true">
-                                <button title="Edit in codepen" class="btn btnCodepen btn-download btn-neg" type="submit">
-                                    <span class="icn-wrp icn-wrp-codepen icn-wrp-left">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="icn-svg" viewBox="0 0 24 24"
-                                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                            stroke-linejoin="round">
-                                            <path
-                                                d="M12 2l10 6.5v7l-10 6.5-10-6.5v-7zm0 20v-6.5m10-7l-10 7-10-7m0 7l10-7 10 7m-10-13.5v6.5" />
-                                        </svg>
-                                    </span> Codepen
-                                </button>
-                            </form>
+                        <!-- codepen -->
+                        <form action="https://codepen.io/pen/define" method="POST" target="_blank"
+                            class="form-codepen dsp-inl-blc">
+                            <input id="inputCodepen" type="hidden" value="" name="data" data-ignore="true">
+                            <button title="Edit in codepen" class="btn btnCodepen btn-download btn-neg" type="submit">
+                                <span class="icn-wrp icn-wrp-codepen icn-wrp-left">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icn-svg" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path
+                                            d="M12 2l10 6.5v7l-10 6.5-10-6.5v-7zm0 20v-6.5m10-7l-10 7-10-7m0 7l10-7 10 7m-10-13.5v6.5" />
+                                    </svg>
+                                </span> Codepen
+                            </button>
+                        </form>
 
-                            <!-- svg editor -->
-                            <a class="btn lnk-edit btn-download btn-neg" id="linkEdit" title="Edit in svg-path-editor"
-                                target="_blank" rel="noopener noreferrer" data-icon="pencil" href="">Edit</a>
-
-
+                        <!-- svg editor -->
+                        <a class="btn lnk-edit btn-download btn-neg" id="linkEdit" title="Edit in svg-path-editor"
+                            target="_blank" rel="noopener noreferrer" data-icon="pencil" href="">Edit</a>
 
 
-                            <!-- copy -->
-                            <button id="btnCopy" class="btn btn-download btn-neg" data-icon="copy">Copy</button>
 
-                            <!-- save -->
-                            <a href="#" data-name="" class="btn btn-download btn-neg" id="btnDownload"
-                                data-icon="arrow-down-tray" download="simplified.svg"> Download SVG</a>
+
+                        <!-- copy -->
+                        <button id="btnCopy" class="btn btn-download btn-neg" data-icon="copy">Copy</button>
+
+                        <!-- save -->
+                        <a href="#" data-name="" class="btn btn-download btn-neg" id="btnDownload"
+                            data-icon="arrow-down-tray" download="simplified.svg"> Download SVG</a>
 
 
                     </div>
